@@ -6,7 +6,7 @@ from django.db import models
 from core.constants import FieldLengths
 from core.models import BaseModel
 
-
+from .managers import UserManager
 class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     email = models.EmailField(
         max_length=FieldLengths.EMAIL,
@@ -26,6 +26,7 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     )
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    objects = UserManager()
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

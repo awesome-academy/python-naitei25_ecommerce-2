@@ -46,3 +46,18 @@ class Product(BaseModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def first_image_url(self):
+        """
+        Get the first image URL from the image_urls list.
+
+        Useful for displaying the main product image in lists or details.
+        """
+        if self.image_urls and len(self.image_urls) > 0:
+            return self.image_urls[0]
+        return None
+
+    @property
+    def formatted_price(self):
+        return f"{self.price:,.2f} VND"
