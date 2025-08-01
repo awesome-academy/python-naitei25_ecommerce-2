@@ -23,6 +23,7 @@ from config.views import GoogleLogin
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('products.urls')),
+    path('', include('cart.urls')),
     path('api/auth/', include('accounts.urls')),
     path('dj-rest-auth/', include('dj_rest_auth.urls')),
     path('dj-rest-auth/registration/', include('dj_rest_auth.registration.urls')),
