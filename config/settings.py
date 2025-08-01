@@ -52,7 +52,6 @@ INSTALLED_APPS = [
     'cart',
     'payments',
     'core',
-    'rest_framework',
     'rest_framework.authtoken',
     'rest_framework_simplejwt.token_blacklist',
     'dj_rest_auth',
@@ -62,7 +61,6 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
-    'corsheaders',
 ]
 
 MIDDLEWARE = [
