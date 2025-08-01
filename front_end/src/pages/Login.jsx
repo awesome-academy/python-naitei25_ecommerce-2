@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast'; // assuming this is your hook
+import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
   const [email, setEmail]         = useState('');
@@ -32,6 +33,58 @@ const Login = () => {
         variant: 'destructive',
         title: 'Login failed',
         description: result.message || 'Please check your credentials and try again.',
+      });
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      
+      const tokenParts = credentialResponse.credential.split('.');
+      const decodedToken = JSON.parse(atob(tokenParts[1]));
+      
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const endpoint = import.meta.env.VITE_GOOGLE_AUTH_ENDPOINT;
+      const res = await fetch(`${apiUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          access_token: credentialResponse.credential,
+          id_token: credentialResponse.credential,
+        }),
+      });
+
+      const responseData = await res.json();
+
+      if (!res.ok) {
+        throw new Error(responseData.detail || 'Login failed');
+      }
+
+      // Lưu token vào localStorage
+      if (responseData.access) {
+        localStorage.setItem('token', responseData.access);
+      }
+      if (responseData.refresh) {
+        localStorage.setItem('refreshToken', responseData.refresh);
+      }
+      if (responseData.user) {
+        localStorage.setItem('user', JSON.stringify(responseData.user));
+      }
+
+      navigate('/');
+      toast({
+        title: "Success",
+        description: "Logged in successfully with Google",
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Login failed',
+        description: error.message,
       });
     }
   };
@@ -96,6 +149,15 @@ const Login = () => {
                 Register here
               </Link>
             </p>
+          </div>
+
+          <div className="mt-4">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => {
+                // Xử lý lỗi
+              }}
+            />
           </div>
         </div>
       </motion.div>
