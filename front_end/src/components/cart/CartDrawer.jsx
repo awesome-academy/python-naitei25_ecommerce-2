@@ -1,12 +1,12 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Minus, Plus, Trash2, CreditCard } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useCart } from '@/contexts/CartContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/components/ui/use-toast';
-import CheckoutForm from '@/components/cart/CheckoutForm';
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Minus, Plus, Trash2, CreditCard } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/components/ui/use-toast";
+import CheckoutForm from "@/components/cart/CheckoutForm";
 
 const CartItem = ({ item, onUpdateQuantity, onRemove }) => (
   <div className="flex items-center space-x-3 border-b border-gray-100 pb-4">
@@ -20,13 +20,13 @@ const CartItem = ({ item, onUpdateQuantity, onRemove }) => (
         {item.name}
       </h4>
       <p className="text-blue-600 font-semibold">
-        ${item.price.toFixed(2)}
+        ${parseFloat(item.price).toFixed(2)}
       </p>
       <div className="flex items-center space-x-2 mt-2">
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+          onClick={() => onUpdateQuantity(item.product_id, item.quantity - 1)} // 🔧 FIXED
           className="h-6 w-6 p-0"
         >
           <Minus className="h-3 w-3" />
@@ -37,7 +37,7 @@ const CartItem = ({ item, onUpdateQuantity, onRemove }) => (
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+          onClick={() => onUpdateQuantity(item.product_id, item.quantity + 1)} // 🔧 FIXED
           className="h-6 w-6 p-0"
         >
           <Plus className="h-3 w-3" />
@@ -45,7 +45,7 @@ const CartItem = ({ item, onUpdateQuantity, onRemove }) => (
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => onRemove(item.id)}
+          onClick={() => onRemove(item.product_id)} // 🔧 FIXED
           className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
         >
           <Trash2 className="h-3 w-3" />
@@ -80,7 +80,7 @@ const CartDrawer = () => {
         variant: "destructive",
       });
       toggleCart();
-      navigate('/login');
+      navigate("/login");
     }
   };
 
@@ -90,8 +90,11 @@ const CartDrawer = () => {
   };
 
   const drawerVariants = {
-    hidden: { x: '100%' },
-    visible: { x: 0, transition: { type: 'spring', damping: 30, stiffness: 300 } },
+    hidden: { x: "100%" },
+    visible: {
+      x: 0,
+      transition: { type: "spring", damping: 30, stiffness: 300 },
+    },
   };
 
   return (
@@ -116,7 +119,7 @@ const CartDrawer = () => {
           >
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">
-                {isCheckoutOpen ? 'Checkout' : 'Shopping Cart'}
+                {isCheckoutOpen ? "Checkout" : "Shopping Cart"}
               </h2>
               <Button
                 variant="ghost"
@@ -139,9 +142,9 @@ const CartDrawer = () => {
                   ) : (
                     <div className="p-4 space-y-4">
                       {cartItems.map((item) => (
-                        <CartItem 
-                          key={item.id} 
-                          item={item} 
+                        <CartItem
+                          key={item.product_id} // 🔧 FIXED
+                          item={item}
                           onUpdateQuantity={updateQuantity}
                           onRemove={removeFromCart}
                         />
@@ -160,7 +163,7 @@ const CartDrawer = () => {
                     ${getCartTotal().toFixed(2)}
                   </span>
                 </div>
-                
+
                 <Button
                   onClick={handleProceedToCheckout}
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white"

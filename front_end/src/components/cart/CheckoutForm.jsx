@@ -1,27 +1,26 @@
-
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useCart } from '@/contexts/CartContext';
-import { toast } from '@/components/ui/use-toast';
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useCart } from "@/contexts/CartContext";
+import { toast } from "@/components/ui/use-toast";
 
 const CheckoutForm = () => {
   const [formData, setFormData] = useState({
-    name: '',
-    address: '',
-    phone: '',
+    name: "",
+    address: "",
+    phone: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
-  const [orderId, setOrderId] = useState('');
+  const [orderId, setOrderId] = useState("");
 
   const { cartItems, getCartTotal, clearCart, closeCheckout } = useCart();
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -37,22 +36,25 @@ const CheckoutForm = () => {
         items: cartItems,
         total: getCartTotal(),
         customer: formData,
-        paymentMethod: 'COD',
+        paymentMethod: "COD",
       };
 
-      const response = await fetch('http://localhost:8000/api/orders/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderData),
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/orders/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(orderData),
+        }
+      );
 
       if (response.ok) {
         const result = await response.json();
         setOrderId(result.orderId);
       } else {
-        throw new Error('Order placement failed');
+        throw new Error("Order placement failed");
       }
     } catch (error) {
       // Mock successful order for demo
@@ -79,8 +81,18 @@ const CheckoutForm = () => {
       >
         <div className="mb-6">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <svg
+              className="w-8 h-8 text-green-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
             </svg>
           </div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -112,7 +124,9 @@ const CheckoutForm = () => {
         <div className="space-y-2">
           {cartItems.map((item) => (
             <div key={item.id} className="flex justify-between text-sm">
-              <span>{item.name} × {item.quantity}</span>
+              <span>
+                {item.name} × {item.quantity}
+              </span>
               <span>${(item.price * item.quantity).toFixed(2)}</span>
             </div>
           ))}
@@ -190,7 +204,7 @@ const CheckoutForm = () => {
           disabled={isSubmitting}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white"
         >
-          {isSubmitting ? 'Placing Order...' : 'Place Order'}
+          {isSubmitting ? "Placing Order..." : "Place Order"}
         </Button>
       </form>
     </div>
