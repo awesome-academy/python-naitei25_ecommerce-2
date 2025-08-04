@@ -12,6 +12,7 @@ import Register from "@/pages/Register";
 import TermsOfService from "@/pages/TermsOfService";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import RefundPolicy from "@/pages/RefundPolicy";
+import OrdersPage from "@/pages/OrdersPage";
 
 import AdminRoutes from "@/routes/AdminRoutes";
 
@@ -25,6 +26,7 @@ function App() {
               <Route index element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/orders" element={<OrdersPage />} />
               <Route path="categories" element={<Categories />} />
               <Route path="/categories/:categoryId" element={<Categories />} />
               <Route path="product/:productId" element={<ProductDetail />} />
