@@ -38,3 +38,7 @@ class OrderStatus(str, Enum):
     @classmethod
     def choices(cls):
         return [(status.value, status.value.title()) for status in cls]
+
+class CartSettings:
+    """Constants related to cart behavior"""
+    MAX_QUANTITY_PER_ITEM = 100

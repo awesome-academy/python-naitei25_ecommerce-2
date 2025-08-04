@@ -9,7 +9,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from core.decorators import json_jwt_required, public_api
 from django.utils.translation import gettext as _
-from django.conf import settings
+from core.constants import CartSettings
 
 
 def calculate_cart_total(items):
@@ -28,9 +28,9 @@ def add_to_cart(request):
         if not product_id or quantity <= 0:
             raise ValueError(_("Invalid product or quantity"))
         
-        if quantity > settings.MAX_QUANTITY_PER_ITEM:
+        if quantity > CartSettings.MAX_QUANTITY_PER_ITEM:
             raise ValueError(_("You can only add up to %(max)s items of a product") % {
-                "max": settings.MAX_QUANTITY_PER_ITEM
+                "max": CartSettings.MAX_QUANTITY_PER_ITEM
             })
 
         product = Product.objects.get(id=product_id)
@@ -49,9 +49,9 @@ def add_to_cart(request):
         for item in cart.items:
             if item['product_id'] == new_item['product_id']:
                 updated_quantity = item['quantity'] + new_item['quantity']
-                if updated_quantity > settings.MAX_QUANTITY_PER_ITEM:
+                if updated_quantity > CartSettings.MAX_QUANTITY_PER_ITEM:
                     raise ValueError(_("Total quantity for this product cannot exceed %(max)s") % {
-                        "max": settings.MAX_QUANTITY_PER_ITEM
+                        "max": CartSettings.MAX_QUANTITY_PER_ITEM
                     })
                 item['quantity'] = updated_quantity
                 item_exists = True
