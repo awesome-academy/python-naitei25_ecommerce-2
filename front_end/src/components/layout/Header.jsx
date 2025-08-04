@@ -1,24 +1,24 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useCart } from '@/contexts/CartContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/components/ui/use-toast';
-import { Input } from '@/components/ui/input';
-import UserNav from '@/components/layout/UserNav';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Search, ShoppingCart } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/components/ui/use-toast";
+import { Input } from "@/components/ui/input";
+import UserNav from "@/components/layout/UserNav";
 
 const Header = () => {
   const { getCartItemsCount, toggleCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/categories?search=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery('');
+      setSearchQuery("");
     }
   };
 
@@ -31,7 +31,7 @@ const Header = () => {
         description: "You need to log in to view your cart.",
         variant: "destructive",
       });
-      navigate('/login');
+      navigate("/login");
     }
   };
 
@@ -41,7 +41,7 @@ const Header = () => {
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center">
             <span className="text-2xl font-bold text-gray-900">
-              Django Electo
+              Django Electro
             </span>
           </Link>
 
@@ -60,7 +60,10 @@ const Header = () => {
 
           <div className="flex items-center space-x-4">
             <Link to="/categories">
-              <Button variant="ghost" className="text-gray-700 hover:text-gray-900">
+              <Button
+                variant="ghost"
+                className="text-gray-700 hover:text-gray-900"
+              >
                 Categories
               </Button>
             </Link>

@@ -102,6 +102,8 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const token = localStorage.getItem("token");
+
   const value = useMemo(
     () => ({
       user,
@@ -110,13 +112,11 @@ export function AuthProvider({ children }) {
       register,
       logout,
       authFetch, // expose for direct API calls
+      token,
+      setUser,
     }),
     [user, isLoading, login, register, logout]
   );
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!isLoading && children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
