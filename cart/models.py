@@ -11,6 +11,7 @@ class Cart(BaseModel):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='cart',
+        null=False
     )
     items = models.JSONField(default=list)
 
@@ -19,3 +20,9 @@ class Cart(BaseModel):
 
     def __str__(self):
         return f"Cart for {self.user.email}"
+
+    def get_item_count(self):
+        return len(self.items)
+
+    def get_total(self):
+        return sum(float(item['price']) * item['quantity'] for item in self.items)
