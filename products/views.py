@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from django.db.models import Q
-from rest_framework import generics
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from rest_framework import generics, permissions
 
 from products.models import Category
 from products.models import Product
@@ -10,11 +12,22 @@ from products.serializers import CategorySerializer
 from products.serializers import ProductDetailSerializer
 from products.serializers import ProductListSerializer
 
-
 class CategoryListAPIView(generics.ListAPIView):
     serializer_class = CategorySerializer
     queryset = Category.objects.all().order_by('name')
 
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CategoryListCreateView(generics.ListCreateAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = [permissions.IsAdminUser]
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = [permissions.IsAdminUser]
 
 class ProductListAPIView(generics.ListAPIView):
     serializer_class = ProductListSerializer

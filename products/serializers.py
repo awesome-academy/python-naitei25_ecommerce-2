@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from rest_framework import serializers
+from django.utils.translation import gettext_lazy as _
 
 from products.models import Category
 from products.models import Product
@@ -11,6 +12,11 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = ['id', 'name', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def validate_name(self, value):
+        if self.instance is None and Category.objects.filter(name=value).exists():
+            raise serializers.ValidationError(_("Category with this name already exists."))
+        return value
 
 
 class ProductListSerializer(serializers.ModelSerializer):
