@@ -21,6 +21,14 @@ urlpatterns = [
         'api/categories/', views.CategoryListAPIView.as_view(),
         name='api_category_list',
     ),
+    path(
+        'api/admin/categories/', views.CategoryListCreateView.as_view(),
+        name='admin_category_list_create',
+    ),
+    path(
+        'api/admin/categories/<int:pk>/', views.CategoryDetailView.as_view(),
+        name='admin_category_detail',
+    ),
 
     # API documentation
     path('api/docs/', APIDocumentationView.as_view(), name='api_docs'),

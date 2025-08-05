@@ -12,6 +12,8 @@ class Category(BaseModel):
         max_length=FieldLengths.NAME,
         unique=True,
     )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'categories'
