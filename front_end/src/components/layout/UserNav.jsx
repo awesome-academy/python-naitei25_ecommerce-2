@@ -1,16 +1,16 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { User, LogOut } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from '@/components/ui/use-toast';
+import React from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { User, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/components/ui/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 
 const UserNav = () => {
   const { user, logout } = useAuth();
@@ -18,7 +18,7 @@ const UserNav = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate("/");
   };
 
   if (!user) {
@@ -50,10 +50,12 @@ const UserNav = () => {
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem className="flex flex-col items-start !text-black">
           <p className="text-sm font-medium leading-none">{user.name}</p>
-          <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+          <p className="text-xs leading-none text-muted-foreground">
+            {user.email}
+          </p>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => toast({ title: "🚧 This feature isn't implemented yet—but don't worry! You can request it in your next prompt! 🚀" })}>
+        <DropdownMenuItem onClick={() => navigate("/orders")}>
           My Orders
         </DropdownMenuItem>
         <DropdownMenuSeparator />

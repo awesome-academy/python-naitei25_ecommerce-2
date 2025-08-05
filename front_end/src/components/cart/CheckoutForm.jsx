@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +15,26 @@ const CheckoutForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState("");
+  const token = localStorage.getItem("token");
 
   const { cartItems, getCartTotal, clearCart, closeCheckout } = useCart();
+
+  useEffect(() => {
+    const stored = localStorage.getItem("user");
+    if (stored) {
+      try {
+        const u = JSON.parse(stored);
+        if (u.first_name && u.last_name) {
+          setFormData((prev) => ({
+            ...prev,
+            name: `${u.first_name} ${u.last_name}`,
+          }));
+        }
+      } catch (err) {
+        console.error("Could not parse user from localStorage", err);
+      }
+    }
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -29,14 +47,19 @@ const CheckoutForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-
+    let newOrderId = "";
     try {
-      // Mock API call to place order
       const orderData = {
-        items: cartItems,
-        total: getCartTotal(),
-        customer: formData,
-        paymentMethod: "COD",
+        customer_name: formData.name,
+        customer_phone: formData.phone,
+        customer_address: formData.address,
+        total_amount: getCartTotal(),
+        payment_method: "COD",
+        items: cartItems.map((item) => ({
+          product: item.product_id,
+          quantity: item.quantity,
+          price_at_order: item.price,
+        })),
       };
 
       const response = await fetch(
@@ -45,6 +68,7 @@ const CheckoutForm = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(orderData),
         }
@@ -52,14 +76,15 @@ const CheckoutForm = () => {
 
       if (response.ok) {
         const result = await response.json();
-        setOrderId(result.orderId);
+        newOrderId = result.id;
+
+        setOrderId(newOrderId); // update state for UI, if needed later
       } else {
         throw new Error("Order placement failed");
       }
     } catch (error) {
-      // Mock successful order for demo
-      const mockOrderId = `ORD-${Date.now()}`;
-      setOrderId(mockOrderId);
+      // fallback for demo
+      setOrderId(`ORD-${Date.now()}`);
     }
 
     setOrderPlaced(true);
@@ -68,7 +93,7 @@ const CheckoutForm = () => {
 
     toast({
       title: "Order placed successfully!",
-      description: `Your order has been placed. Order ID: ${orderId}`,
+      description: `Your order has been placed. Order ID: ${newOrderId}`,
     });
   };
 
@@ -105,7 +130,6 @@ const CheckoutForm = () => {
             Order ID: <span className="font-mono font-medium">{orderId}</span>
           </p>
         </div>
-
         <Button
           onClick={closeCheckout}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white"
@@ -118,7 +142,6 @@ const CheckoutForm = () => {
 
   return (
     <div className="p-4">
-      {/* Order Summary */}
       <div className="mb-6">
         <h3 className="font-semibold text-gray-900 mb-3">Order Summary</h3>
         <div className="space-y-2">
@@ -137,7 +160,6 @@ const CheckoutForm = () => {
         </div>
       </div>
 
-      {/* Checkout Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="name">Full Name</Label>

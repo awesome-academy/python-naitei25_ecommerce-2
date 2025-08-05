@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/admin/ui/alert-dialog";
-import { useAdminApi } from "@/contexts/AdminApi";
+import { useAdminApi } from "@/contexts/AdminAPI";
 import { toast } from "@/components/admin/ui/use-toast";
 import { Plus, Trash2, FolderOpen, Tag } from "lucide-react";
 

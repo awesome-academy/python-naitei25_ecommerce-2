@@ -7,7 +7,7 @@ import React, {
   useCallback,
 } from "react";
 import { toast } from "@/components/ui/use-toast";
-import { useAuth } from "@/contexts/AuthContext"; // this must provide the JWT token via localStorage or context
+import { useAuth } from "@/contexts/AuthContext";
 
 const CartContext = createContext(null);
 const API_URL = `${import.meta.env.VITE_API_URL}/api/cart/`;
@@ -21,22 +21,21 @@ export const useCart = () => {
 };
 
 export const CartProvider = ({ children }) => {
-  const { user } = useAuth(); // assumes user already logged in
+  const { user } = useAuth();
   const [cartItems, setCartItems] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
-  // 🔧 1) Load cart with JWT Authorization
   useEffect(() => {
     if (!user) return;
 
     const fetchCart = async () => {
       try {
-        const token = localStorage.getItem("token"); // 🔧 get JWT
+        const token = localStorage.getItem("token");
         const res = await fetch(`${API_URL}`, {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${token}`, // 🔧 add Authorization header
+            Authorization: `Bearer ${token}`,
           },
         });
 
@@ -51,30 +50,28 @@ export const CartProvider = ({ children }) => {
     fetchCart();
   }, [user]);
 
-  // 🔧 2) Add to cart with JWT
   const addToCart = useCallback(async (product, quantity = 1) => {
     try {
-      const token = localStorage.getItem("token"); // 🔧 get JWT
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_URL}add/`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`, // 🔧 set token here
-          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: new URLSearchParams({
+        body: JSON.stringify({
           product_id: product.id,
-          quantity: String(quantity),
+          quantity,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to add to cart");
 
-      // 🔧 3) Refresh cart with Authorization
       const cartRes = await fetch(`${API_URL}`, {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${token}`, // 🔧 refresh with token
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -94,7 +91,6 @@ export const CartProvider = ({ children }) => {
     }
   }, []);
 
-  // (Same: Local state only)
   const removeFromCart = useCallback((productId) => {
     setCartItems((prev) =>
       prev.filter((item) => item.product_id !== productId)

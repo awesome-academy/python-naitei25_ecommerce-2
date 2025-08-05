@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/admin/ui/dialog";
-import { useAdminApi } from "@/contexts/AdminApi"; // Corrected from AdminAPI to AdminApi
+import { useAdminApi } from "@/contexts/AdminAPI"; // Corrected from AdminAPI to AdminApi
 import { toast } from "@/components/admin/ui/use-toast"; // Corrected path
 import {
   Eye,
