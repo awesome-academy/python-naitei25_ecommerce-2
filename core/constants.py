@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from enum import Enum
+
 
 class FieldLengths:
     """Constants for field lengths"""
@@ -10,10 +13,19 @@ class FieldLengths:
     PASSWORD = 255
     ADDRESS = 1000
 
+
 class DecimalSettings:
     """Constants for decimal fields"""
     PRICE_MAX_DIGITS = 10
     PRICE_DECIMAL_PLACES = 2
+
+
+class PaginationSettings:
+    """Constants for pagination"""
+    DEFAULT_PAGE_SIZE = 20
+    MAX_PAGE_SIZE = 100
+    USER_LIST_PAGE_SIZE = 20
+
 
 class PaymentMethod(str, Enum):
     """Payment methods enumeration"""
@@ -23,8 +35,11 @@ class PaymentMethod(str, Enum):
 
     @classmethod
     def choices(cls):
-        return [(method.value, method.name.replace('_', ' ').title()) 
-                for method in cls]
+        return [
+            (method.value, method.name.replace('_', ' ').title())
+            for method in cls
+        ]
+
 
 class OrderStatus(str, Enum):
     """Order status enumeration"""

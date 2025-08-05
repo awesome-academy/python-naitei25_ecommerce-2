@@ -12,10 +12,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
-from datetime import timedelta
 
 load_dotenv()
 
@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'products',
     'accounts',
+    'users',
     'orders',
     'cart',
     'payments',
@@ -118,7 +119,7 @@ SOCIALACCOUNT_PROVIDERS = {
         'APP': {
             'client_id': os.getenv('GOOGLE_CLIENT_ID'),
             'secret': os.getenv('GOOGLE_CLIENT_SECRET'),
-            'key': ''
+            'key': '',
         },
         'SCOPE': [
             'profile',
@@ -128,7 +129,7 @@ SOCIALACCOUNT_PROVIDERS = {
             'access_type': 'online',
         },
         'VERIFIED_EMAIL': True,
-    }
+    },
 }
 
 REST_USE_JWT = True
