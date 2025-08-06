@@ -14,7 +14,7 @@ import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import RefundPolicy from "@/pages/RefundPolicy";
 import OrdersPage from "@/pages/OrdersPage";
 
-import AdminRoutes from "@/routes/AdminRoutes";
+import AdminRoutes from "@/Routes/AdminRoutes";
 
 function App() {
   return (

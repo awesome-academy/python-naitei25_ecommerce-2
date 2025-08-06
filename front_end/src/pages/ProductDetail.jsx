@@ -24,22 +24,33 @@ const ProductDetail = () => {
         const response = await fetch(
           `${import.meta.env.VITE_API_URL}/api/products/${productId}/`
         );
-        if (response.ok) {
-          const data = await response.json();
-          setProduct({
-            id: data.id,
-            name: data.name,
-            description: data.description,
-            price: parseFloat(data.price || 0),
-            specs:
-              data.specification?.map((spec) => `${spec.key}: ${spec.value}`) ||
-              [],
-            images: data.image_urls || [],
-            inStock: data.is_in_stock,
-          });
-        } else {
+        if (!response.ok) {
           console.error("Failed to fetch product");
+          return;
         }
+        const data = await response.json();
+
+        // Convert specification object into array of "Key: Value" strings
+        const specs = data.specification
+          ? Object.entries(data.specification)
+              .filter(([key]) => key !== "updated_at")
+              .map(
+                ([key, value]) =>
+                  `${key
+                    .replace(/_/g, " ")
+                    .replace(/\b\w/g, (c) => c.toUpperCase())}: ${value}`
+              )
+          : [];
+
+        setProduct({
+          id: data.id,
+          name: data.name,
+          description: data.description,
+          price: parseFloat(data.price || 0),
+          specs,
+          images: data.image_urls || [],
+          inStock: data.is_in_stock,
+        });
       } catch (error) {
         console.error("Error fetching product:", error);
       }
@@ -58,7 +69,6 @@ const ProductDetail = () => {
       navigate("/login");
       return;
     }
-
     if (product && product.inStock) {
       try {
         setIsAdding(true);
@@ -103,20 +113,23 @@ const ProductDetail = () => {
       >
         {/* Images */}
         <div>
+          {/* Main image container */}
           <div className="mb-4">
-            <img
-              src={product.images[selectedImage]}
-              alt={product.name}
-              className="w-full h-96 object-cover rounded-lg border border-gray-200"
-            />
+            <div className="w-full h-96 bg-gray-100 flex items-center justify-center rounded-lg border border-gray-200">
+              <img
+                src={product.images[selectedImage]}
+                alt={product.name}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
           </div>
-
+          {/* Thumbnails */}
           <div className="flex space-x-2">
             {product.images.map((image, index) => (
               <button
                 key={index}
                 onClick={() => setSelectedImage(index)}
-                className={`w-20 h-20 rounded-md border-2 overflow-hidden ${
+                className={`w-20 h-20 bg-gray-100 rounded-md border-2 overflow-hidden ${
                   selectedImage === index
                     ? "border-blue-500"
                     : "border-gray-200"
@@ -125,7 +138,7 @@ const ProductDetail = () => {
                 <img
                   src={image}
                   alt={`${product.name} ${index + 1}`}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                 />
               </button>
             ))}
@@ -137,13 +150,11 @@ const ProductDetail = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
             {product.name}
           </h1>
-
           <div className="mb-6">
             <span className="text-3xl font-bold text-blue-600">
               ${product.price.toFixed(2)}
             </span>
           </div>
-
           <div className="mb-6">
             {product.inStock ? (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
@@ -155,13 +166,11 @@ const ProductDetail = () => {
               </span>
             )}
           </div>
-
           <div className="mb-6">
             <p className="text-gray-600 leading-relaxed">
               {product.description}
             </p>
           </div>
-
           <div className="mb-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">
               Specifications
@@ -175,7 +184,6 @@ const ProductDetail = () => {
               ))}
             </ul>
           </div>
-
           {/* Quantity and Add to Cart */}
           <div className="flex items-center space-x-4 mb-6">
             <div className="flex items-center border border-gray-300 rounded-md">
@@ -196,7 +204,6 @@ const ProductDetail = () => {
                 <Plus className="h-4 w-4" />
               </button>
             </div>
-
             <Button
               onClick={handleAddToCart}
               disabled={!product.inStock || isAdding}
