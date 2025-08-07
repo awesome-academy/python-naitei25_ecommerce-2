@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Minus, Plus, Trash2, CreditCard } from "lucide-react";
+import { X, Minus, Plus, Trash2, CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,7 +26,7 @@ const CartItem = ({ item, onUpdateQuantity, onRemove }) => (
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onUpdateQuantity(item.product_id, item.quantity - 1)} // 🔧 FIXED
+          onClick={() => onUpdateQuantity(item.product_id, item.quantity - 1)}
           className="h-6 w-6 p-0"
         >
           <Minus className="h-3 w-3" />
@@ -37,7 +37,7 @@ const CartItem = ({ item, onUpdateQuantity, onRemove }) => (
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onUpdateQuantity(item.product_id, item.quantity + 1)} // 🔧 FIXED
+          onClick={() => onUpdateQuantity(item.product_id, item.quantity + 1)}
           className="h-6 w-6 p-0"
         >
           <Plus className="h-3 w-3" />
@@ -45,7 +45,7 @@ const CartItem = ({ item, onUpdateQuantity, onRemove }) => (
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => onRemove(item.product_id)} // 🔧 FIXED
+          onClick={() => onRemove(item.product_id)}
           className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
         >
           <Trash2 className="h-3 w-3" />
@@ -59,6 +59,7 @@ const CartDrawer = () => {
   const {
     cartItems,
     isCartOpen,
+    isCartLoading,
     isCheckoutOpen,
     toggleCart,
     updateQuantity,
@@ -101,6 +102,7 @@ const CartDrawer = () => {
     <AnimatePresence>
       {isCartOpen && (
         <>
+          {/* backdrop */}
           <motion.div
             variants={backdropVariants}
             initial="hidden"
@@ -110,6 +112,7 @@ const CartDrawer = () => {
             className="fixed inset-0 bg-black bg-opacity-50 z-50"
           />
 
+          {/* drawer */}
           <motion.div
             variants={drawerVariants}
             initial="hidden"
@@ -117,6 +120,7 @@ const CartDrawer = () => {
             exit="hidden"
             className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl z-50 flex flex-col"
           >
+            {/* header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <h2 className="text-lg font-semibold text-gray-900">
                 {isCheckoutOpen ? "Checkout" : "Shopping Cart"}
@@ -130,32 +134,37 @@ const CartDrawer = () => {
               </Button>
             </div>
 
+            {/* content */}
             <div className="flex-1 overflow-y-auto">
               {isCheckoutOpen ? (
                 <CheckoutForm />
+              ) : isCartLoading ? (
+                // 🚀 show spinner while initial load
+                <div className="p-6 flex justify-center items-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+                </div>
+              ) : cartItems.length === 0 ? (
+                // after loading, if still empty
+                <div className="p-4 text-center text-gray-500 h-full flex items-center justify-center">
+                  Your cart is empty
+                </div>
               ) : (
-                <>
-                  {cartItems.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500 h-full flex items-center justify-center">
-                      Your cart is empty
-                    </div>
-                  ) : (
-                    <div className="p-4 space-y-4">
-                      {cartItems.map((item) => (
-                        <CartItem
-                          key={item.product_id} // 🔧 FIXED
-                          item={item}
-                          onUpdateQuantity={updateQuantity}
-                          onRemove={removeFromCart}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </>
+                // list items
+                <div className="p-4 space-y-4">
+                  {cartItems.map((item) => (
+                    <CartItem
+                      key={item.product_id}
+                      item={item}
+                      onUpdateQuantity={updateQuantity}
+                      onRemove={removeFromCart}
+                    />
+                  ))}
+                </div>
               )}
             </div>
 
-            {!isCheckoutOpen && cartItems.length > 0 && (
+            {/* footer with total & checkout */}
+            {!isCheckoutOpen && !isCartLoading && cartItems.length > 0 && (
               <div className="border-t border-gray-200 p-4 space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-gray-900">Total:</span>

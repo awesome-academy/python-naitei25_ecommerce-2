@@ -1,152 +1,172 @@
+// src/contexts/CartContext.jsx
 import React, {
   createContext,
   useContext,
   useState,
   useEffect,
-  useMemo,
   useCallback,
+  useMemo,
 } from "react";
 import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
 const CartContext = createContext(null);
-const API_URL = `${import.meta.env.VITE_API_URL}/api/cart/`;
+const API_BASE = `${import.meta.env.VITE_API_URL}/api/cart/`;
+const getToken = () => localStorage.getItem("token");
 
 export const useCart = () => {
-  const context = useContext(CartContext);
-  if (!context) {
-    throw new Error("useCart must be used within a CartProvider");
-  }
-  return context;
+  const ctx = useContext(CartContext);
+  if (!ctx) throw new Error("useCart must be used inside CartProvider");
+  return ctx;
 };
 
 export const CartProvider = ({ children }) => {
   const { user } = useAuth();
+
+  // State
   const [cartItems, setCartItems] = useState([]);
+  const [isCartLoading, setIsCartLoading] = useState(true);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchCart = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(`${API_URL}`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) throw new Error("Failed to load cart");
+  // Fetch latest cart from server
+  const fetchCart = useCallback(async () => {
+    if (!user) {
+      setCartItems([]);
+      setIsCartLoading(false);
+      return;
+    }
+    setIsCartLoading(true);
+    try {
+      const res = await fetch(API_BASE, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (res.ok) {
         const data = await res.json();
-        setCartItems(data.items || []);
-      } catch (err) {
-        console.error(err);
+        setCartItems(data.items ?? []);
+      } else {
+        console.error("Failed to fetch cart:", await res.text());
       }
-    };
-
-    fetchCart();
+    } catch (err) {
+      console.error("Error fetching cart:", err);
+    }
+    setIsCartLoading(false);
   }, [user]);
 
-  const addToCart = useCallback(async (product, quantity = 1) => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API_URL}add/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          product_id: product.id,
-          quantity,
-        }),
-      });
+  // Load initial cart on user change
+  useEffect(() => {
+    fetchCart();
+  }, [fetchCart]);
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to add to cart");
-
-      const cartRes = await fetch(`${API_URL}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!cartRes.ok) throw new Error("Failed to refresh cart");
-      const cartData = await cartRes.json();
-      setCartItems(cartData.items || []);
-
-      toast({
-        title: "Added to cart",
-        description: `${product.name} has been added to your cart.`,
-      });
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: err.message,
-      });
-    }
-  }, []);
-
-  const removeFromCart = useCallback((productId) => {
-    setCartItems((prev) =>
-      prev.filter((item) => item.product_id !== productId)
-    );
-    toast({
-      title: "Removed from cart",
-      description: "Item has been removed.",
-    });
-  }, []);
-
-  const updateQuantity = useCallback(
-    (productId, quantity) => {
-      if (quantity <= 0) {
-        removeFromCart(productId);
-        return;
+  // Optimistic mutations
+  const addToCart = useCallback((product, qty = 1) => {
+    setCartItems((prev) => {
+      const existing = prev.find((it) => it.product_id === product.id);
+      if (existing) {
+        return prev.map((it) =>
+          it.product_id === product.id
+            ? { ...it, quantity: it.quantity + qty }
+            : it
+        );
       }
-      setCartItems((prev) =>
-        prev.map((item) =>
-          item.product_id === productId ? { ...item, quantity } : item
-        )
-      );
-    },
-    [removeFromCart]
-  );
+      return [
+        ...prev,
+        {
+          product_id: product.id,
+          name: product.name,
+          price: product.price,
+          image: product.first_image,
+          quantity: qty,
+        },
+      ];
+    });
+    toast({ title: "Added to cart", description: product.name });
+    fetch(API_BASE + "add/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify({ product_id: product.id, quantity: qty }),
+    }).catch((e) => console.error("Sync add failed:", e));
+  }, []);
+
+  const updateQuantity = useCallback((product_id, quantity) => {
+    if (quantity <= 0) return removeFromCart(product_id);
+    setCartItems((prev) =>
+      prev.map((it) =>
+        it.product_id === product_id ? { ...it, quantity } : it
+      )
+    );
+    fetch(API_BASE + "update/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify({ product_id, quantity }),
+    }).catch((e) => console.error("Sync update failed:", e));
+  }, []);
+
+  const removeFromCart = useCallback((product_id) => {
+    setCartItems((prev) => prev.filter((it) => it.product_id !== product_id));
+    toast({ title: "Removed from cart" });
+    fetch(API_BASE + "remove/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify({ product_id }),
+    }).catch((e) => console.error("Sync remove failed:", e));
+  }, []);
 
   const clearCart = useCallback(() => {
     setCartItems([]);
+    toast({ title: "Cart cleared" });
+    fetch(API_BASE + "clear/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`,
+      },
+    }).catch((e) => console.error("Sync clear failed:", e));
   }, []);
 
-  const getCartTotal = useCallback(() => {
-    return cartItems.reduce(
-      (sum, item) => sum + parseFloat(item.price) * item.quantity,
-      0
-    );
-  }, [cartItems]);
+  // Helpers
+  const getCartTotal = useCallback(
+    () =>
+      cartItems.reduce(
+        (sum, it) => sum + parseFloat(it.price) * it.quantity,
+        0
+      ),
+    [cartItems]
+  );
+  const getCartItemsCount = useCallback(
+    () => cartItems.reduce((sum, it) => sum + it.quantity, 0),
+    [cartItems]
+  );
 
-  const getCartItemsCount = useCallback(() => {
-    return cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  }, [cartItems]);
-
+  // Drawer controls
   const toggleCart = useCallback(() => {
-    setIsCartOpen((prev) => !prev);
+    setIsCartOpen((o) => !o);
     if (isCheckoutOpen) setIsCheckoutOpen(false);
   }, [isCheckoutOpen]);
-
-  const openCheckout = useCallback(() => setIsCheckoutOpen(true), []);
+  const openCheckout = useCallback(() => {
+    fetchCart(); // Refresh before showing
+    setIsCheckoutOpen(true);
+  }, [fetchCart]);
   const closeCheckout = useCallback(() => setIsCheckoutOpen(false), []);
 
   const value = useMemo(
     () => ({
       cartItems,
+      isCartLoading,
       isCartOpen,
       isCheckoutOpen,
       addToCart,
-      removeFromCart,
       updateQuantity,
+      removeFromCart,
       clearCart,
       getCartTotal,
       getCartItemsCount,
@@ -156,11 +176,12 @@ export const CartProvider = ({ children }) => {
     }),
     [
       cartItems,
+      isCartLoading,
       isCartOpen,
       isCheckoutOpen,
       addToCart,
-      removeFromCart,
       updateQuantity,
+      removeFromCart,
       clearCart,
       getCartTotal,
       getCartItemsCount,

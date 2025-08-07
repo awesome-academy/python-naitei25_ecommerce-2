@@ -12,14 +12,15 @@ class OrderItemSerializer(serializers.ModelSerializer):
         fields = (
             'product',
             'product_name',
-            'product_image_url',  # ← new field
+            'product_image_url',
             'quantity',
             'price_at_order',
         )
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(many=True)
+    # items will only be used for read, never for create
+    items = OrderItemSerializer(many=True, read_only=True)
 
     class Meta:
         model = Order
@@ -34,11 +35,10 @@ class OrderSerializer(serializers.ModelSerializer):
             'ordered_at',
             'items',
         )
-        read_only_fields = ('id', 'ordered_at', 'order_status')
-
-    def create(self, validated_data):
-        items_data = validated_data.pop('items')
-        order = Order.objects.create(**validated_data)
-        for item in items_data:
-            OrderItem.objects.create(order=order, **item)
-        return order
+        read_only_fields = (
+            'id',
+            'ordered_at',
+            'order_status',
+            'items',
+            'total_amount',   
+        )

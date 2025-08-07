@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,8 +18,10 @@ const CheckoutForm = () => {
   const [orderId, setOrderId] = useState("");
   const token = localStorage.getItem("token");
 
-  const { cartItems, getCartTotal, clearCart, closeCheckout } = useCart();
+  const { cartItems, isCartLoading, getCartTotal, clearCart, closeCheckout } =
+    useCart();
 
+  // prefill name from localStorage user
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (stored) {
@@ -53,13 +56,7 @@ const CheckoutForm = () => {
         customer_name: formData.name,
         customer_phone: formData.phone,
         customer_address: formData.address,
-        total_amount: getCartTotal(),
         payment_method: "COD",
-        items: cartItems.map((item) => ({
-          product: item.product_id,
-          quantity: item.quantity,
-          price_at_order: item.price,
-        })),
       };
 
       const response = await fetch(
@@ -77,16 +74,16 @@ const CheckoutForm = () => {
       if (response.ok) {
         const result = await response.json();
         newOrderId = result.id;
-
-        setOrderId(newOrderId); // update state for UI, if needed later
       } else {
+        const err = await response.json();
+        console.error("Order errors:", err);
         throw new Error("Order placement failed");
       }
-    } catch (error) {
-      // fallback for demo
-      setOrderId(`ORD-${Date.now()}`);
+    } catch {
+      newOrderId = `ORD-${Date.now()}`;
     }
 
+    setOrderId(newOrderId);
     setOrderPlaced(true);
     clearCart();
     setIsSubmitting(false);
@@ -97,6 +94,17 @@ const CheckoutForm = () => {
     });
   };
 
+  // 1) While cart data is loading, show spinner
+  if (isCartLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+        <span className="ml-2 text-gray-600">Loading cart…</span>
+      </div>
+    );
+  }
+
+  // 2) After submission, show thank-you screen
   if (orderPlaced) {
     return (
       <motion.div
@@ -140,13 +148,14 @@ const CheckoutForm = () => {
     );
   }
 
+  // 3) Default: show order summary + form
   return (
     <div className="p-4">
       <div className="mb-6">
         <h3 className="font-semibold text-gray-900 mb-3">Order Summary</h3>
         <div className="space-y-2">
           {cartItems.map((item) => (
-            <div key={item.id} className="flex justify-between text-sm">
+            <div key={item.product_id} className="flex justify-between text-sm">
               <span>
                 {item.name} × {item.quantity}
               </span>
@@ -226,7 +235,14 @@ const CheckoutForm = () => {
           disabled={isSubmitting}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white"
         >
-          {isSubmitting ? "Placing Order..." : "Place Order"}
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Placing Order...
+            </>
+          ) : (
+            "Place Order"
+          )}
         </Button>
       </form>
     </div>
