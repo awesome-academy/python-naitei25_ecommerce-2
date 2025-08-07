@@ -7,6 +7,7 @@ from core.constants import DecimalSettings
 from core.constants import FieldLengths
 from core.constants import OrderStatus
 from core.constants import PaymentMethod
+from core.constants import CancelReason
 from core.models import BaseModel
 
 
@@ -15,6 +16,12 @@ class Order(BaseModel):
         settings.AUTH_USER_MODEL,
         on_delete=models.RESTRICT,
         related_name='orders',
+    )
+    cancel_reason = models.CharField(
+        max_length=FieldLengths.DEFAULT,
+        choices=CancelReason.choices(),
+        null=True,
+        blank=True,
     )
     customer_name = models.CharField(max_length=FieldLengths.DEFAULT)
     customer_phone = models.CharField(max_length=FieldLengths.PHONE)
