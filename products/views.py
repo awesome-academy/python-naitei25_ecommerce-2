@@ -7,6 +7,7 @@ from django.utils.decorators import method_decorator
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from django.utils.translation import gettext_lazy as _
+from rest_framework import filters
 
 from products.models import Category, Product
 from orders.models import OrderItem
@@ -28,6 +29,8 @@ class AdminProductListCreateView(generics.ListCreateAPIView):
     queryset = Product.objects.all()
     serializer_class = AdminProductSerializer
     permission_classes = [permissions.IsAdminUser]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name', 'description']
 
 
 @method_decorator(csrf_exempt, name='dispatch')

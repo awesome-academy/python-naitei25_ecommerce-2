@@ -1,54 +1,49 @@
-import { useState, useEffect } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-export function useAdminAuth() {
+const AdminAuthContext = createContext(null);
+const URL_PREFIX = import.meta.env.VITE_API_URL;
+
+export function AdminAuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
 
+  // bootstrap from storage once
   useEffect(() => {
     const token = localStorage.getItem("admin_token");
-    const userData = localStorage.getItem("admin_user");
-
-    if (token && userData) {
-      setIsAuthenticated(true);
-      setUser(JSON.parse(userData));
+    const raw = localStorage.getItem("admin_user");
+    if (token && raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        setIsAuthenticated(true);
+        setUser(parsed);
+        setIsAdmin(parsed.is_superuser === true);
+      } catch {}
     }
-
     setIsLoading(false);
   }, []);
 
   const login = async (email, password) => {
     try {
-      // Mock API call - replace with actual API endpoint
-      const response = await fetch("/api/admin/login/", {
+      const res = await fetch(`${URL_PREFIX}/api/auth/login/`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
+      if (!res.ok) return { success: false, error: "Invalid credentials" };
 
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem("admin_token", data.token);
-        localStorage.setItem("admin_user", JSON.stringify(data.user));
-        setIsAuthenticated(true);
-        setUser(data.user);
-        return { success: true };
-      } else {
-        return { success: false, error: "Invalid credentials" };
-      }
-    } catch (error) {
-      // For demo purposes, allow login with any credentials
-      const mockUser = { id: 1, email, name: "Admin User" };
-      const mockToken = "mock-jwt-token";
+      const data = await res.json();
+      localStorage.setItem("admin_token", data.token);
+      localStorage.setItem("admin_user", JSON.stringify(data.user));
 
-      localStorage.setItem("admin_token", mockToken);
-      localStorage.setItem("admin_user", JSON.stringify(mockUser));
       setIsAuthenticated(true);
-      setUser(mockUser);
+      setUser(data.user);
+      setIsAdmin(data.user.is_superuser === true);
+
       return { success: true };
+    } catch {
+      return { success: false, error: "Network error" };
     }
   };
 
@@ -56,14 +51,26 @@ export function useAdminAuth() {
     localStorage.removeItem("admin_token");
     localStorage.removeItem("admin_user");
     setIsAuthenticated(false);
+    setIsAdmin(false);
     setUser(null);
   };
 
-  return {
-    isAuthenticated,
-    isLoading,
-    user,
-    login,
-    logout,
-  };
+  const value = useMemo(
+    () => ({ isAuthenticated, isAdmin, isLoading, user, login, logout }),
+    [isAuthenticated, isAdmin, isLoading, user]
+  );
+
+  return (
+    <AdminAuthContext.Provider value={value}>
+      {children}
+    </AdminAuthContext.Provider>
+  );
+}
+
+export function useAdminAuth() {
+  const ctx = useContext(AdminAuthContext);
+  if (!ctx) {
+    throw new Error("useAdminAuth must be used within an AdminAuthProvider");
+  }
+  return ctx;
 }
