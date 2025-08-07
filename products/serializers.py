@@ -19,6 +19,37 @@ class CategorySerializer(serializers.ModelSerializer):
         return value
 
 
+class AdminProductSerializer(serializers.ModelSerializer):
+    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    
+    class Meta:
+        model = Product
+        fields = [
+            'id',
+            'name',
+            'description',
+            'price',
+            'image_urls',
+            'category',
+            'category_name',
+            'specification',
+            'is_in_stock',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'category_name']
+    
+    def validate_image_urls(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError(_("Image URLs must be a list."))
+        return value
+    
+    def validate_specification(self, value):
+        if not isinstance(value, (list, dict)):
+            raise serializers.ValidationError(_("Specification must be a list or dict."))
+        return value
+    
 class ProductListSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     first_image = serializers.SerializerMethodField()

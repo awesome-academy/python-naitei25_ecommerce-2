@@ -4,17 +4,52 @@ from __future__ import annotations
 from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
+from rest_framework.response import Response
+from django.utils.translation import gettext_lazy as _
 
-from products.models import Category
-from products.models import Product
-from products.serializers import CategorySerializer
-from products.serializers import ProductDetailSerializer
-from products.serializers import ProductListSerializer
+from products.models import Category, Product
+from orders.models import OrderItem
+from cart.models import Cart
+from products.serializers import (
+    AdminProductSerializer,
+    CategorySerializer,
+    ProductDetailSerializer,
+    ProductListSerializer,
+)
 
 class CategoryListAPIView(generics.ListAPIView):
     serializer_class = CategorySerializer
     queryset = Category.objects.all().order_by('name')
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AdminProductListCreateView(generics.ListCreateAPIView):
+    queryset = Product.objects.all()
+    serializer_class = AdminProductSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class AdminProductDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Product.objects.all()
+    serializer_class = AdminProductSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if OrderItem.objects.filter(product=instance).exists():
+            return Response(
+                {"detail": _("The product cannot be deleted because it is in an order.")},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if Cart.objects.filter(items__contains=[{"product_id": instance.id}]).exists():
+            return Response(
+                {"detail": _("The product cannot be deleted because it is in the shopping cart.")},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
