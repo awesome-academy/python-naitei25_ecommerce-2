@@ -1,0 +1,23 @@
+{% load i18n %}
+<html>
+<body>
+    <h2>{{ title }}</h2>
+    <p>{% trans "Dear Admin," %}</p>
+    <p>{% blocktrans %}Below is the revenue report for {{ month_year }}:{% endblocktrans %}</p>
+    <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+        <tr style="background-color: #f2f2f2;">
+            <th>{% trans "Metric" %}</th>
+            <th>{% trans "Value" %}</th>
+        </tr>
+        <tr>
+            <td>{% trans "Total Orders Delivered" %}</td>
+            <td>{{ order_count }}</td>
+        </tr>
+        <tr>
+            <td>{% trans "Total Revenue" %} ({{ currency }})</td>
+            <td>{{ revenue }}</td>
+        </tr>
+    </table>
+    <p>{% trans "Best regards," %}<br>{% trans "Python Intern Team" %}</p>
+</body>
+</html>
