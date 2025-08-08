@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-
+from django.utils.translation import gettext_lazy as _
 
 class FieldLengths:
     """Constants for field lengths"""
@@ -52,8 +52,22 @@ class OrderStatus(str, Enum):
 
     @classmethod
     def choices(cls):
-        return [(status.value, status.value.title()) for status in cls]
+        return [(status.value, _(status.value.title())) for status in cls]
 
 class CartSettings:
     """Constants related to cart behavior"""
     MAX_QUANTITY_PER_ITEM = 100
+
+class CancelReason(str, Enum):
+    """Cancel order reasons enumeration"""
+    CHANGE_MIND = 'CHANGE_MIND'
+    FOUND_CHEAPER = 'FOUND_CHEAPER'
+    WRONG_ORDER  = 'WRONG_ORDER'
+    OTHER = 'OTHER'
+
+    @classmethod
+    def choices(cls):
+        return [
+            (reason.value, _(reason.name.replace('_', ' ').title())) 
+            for reason in cls
+        ]

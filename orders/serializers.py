@@ -2,6 +2,7 @@
 
 from rest_framework import serializers
 from .models import Order, OrderItem
+from core.constants import OrderStatus, CancelReason
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name      = serializers.ReadOnlyField(source='product.name')
@@ -21,6 +22,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     # items will only be used for read, never for create
     items = OrderItemSerializer(many=True, read_only=True)
+    can_cancel = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -34,11 +36,16 @@ class OrderSerializer(serializers.ModelSerializer):
             'order_status',
             'ordered_at',
             'items',
+            'cancel_reason',
+            'can_cancel',
         )
         read_only_fields = (
             'id',
             'ordered_at',
-            'order_status',
             'items',
             'total_amount',   
+            'can_cancel',
         )
+
+    def get_can_cancel(self, obj):  
+       return obj.order_status == OrderStatus.PENDING.value
