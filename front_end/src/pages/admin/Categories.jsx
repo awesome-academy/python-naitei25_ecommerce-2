@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+// ✅ Categories.jsx — admin list/create/edit/delete with spinners
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Helmet } from "react-helmet";
 import { Button } from "@/components/admin/ui/button";
@@ -24,58 +25,165 @@ import {
 } from "@/components/admin/ui/alert-dialog";
 import { useAdminApi } from "@/contexts/AdminAPI";
 import { toast } from "@/components/admin/ui/use-toast";
-import { Plus, Trash2, FolderOpen, Tag } from "lucide-react";
+import { Plus, Trash2, Tag, Edit, Loader2, FolderOpen } from "lucide-react";
 
 export function Categories() {
-  const [categories, setCategories] = useState([]);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: "" });
-
   const api = useAdminApi();
 
+  const [categories, setCategories] = useState([]);
+  const [page, setPage] = useState(1);
+  const [nextPage, setNextPage] = useState(null);
+  const [prevPage, setPrevPage] = useState(null);
+
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeletingId, setIsDeletingId] = useState(null);
+
+  const [formData, setFormData] = useState({ name: "" });
+  const [editingCategory, setEditingCategory] = useState(null);
+
   useEffect(() => {
-    loadCategories();
+    loadCategories(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadCategories = async () => {
-    const result = await api.get("/categories/");
-    if (result.success) {
-      setCategories(result.data);
-    }
-  };
+  const normalizeList = (data) =>
+    Array.isArray(data?.results)
+      ? data.results
+      : Array.isArray(data)
+      ? data
+      : [];
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const result = await api.post("/categories/", formData);
-    if (result.success) {
-      loadCategories();
-      setIsAddDialogOpen(false);
-      resetForm();
-    } else {
-      toast({ title: "Failed to add category", variant: "destructive" });
-    }
-  };
-
-  const handleDelete = async (id) => {
-    const result = await api.delete(`/categories/${id}/`);
-    if (result.success) {
-      loadCategories();
-    } else {
-      toast({ title: "Failed to delete category", variant: "destructive" });
+  const loadCategories = async (pageNum = 1) => {
+    setIsLoading(true);
+    try {
+      const res = await api.get(`/admin/categories/?page=${pageNum}`);
+      const list = normalizeList(res?.data);
+      setCategories(list);
+      setNextPage(res?.data?.next ?? null);
+      setPrevPage(res?.data?.previous ?? null);
+      setPage(pageNum);
+    } catch (e) {
+      console.error("Failed to load categories", e);
+      setCategories([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const resetForm = () => {
     setFormData({ name: "" });
+    setEditingCategory(null);
   };
+
+  const handleAddOpen = () => {
+    resetForm();
+    setIsAddDialogOpen(true);
+  };
+
+  const handleEditOpen = (cat) => {
+    setEditingCategory(cat);
+    setFormData({ name: cat.name ?? "" });
+    setIsEditDialogOpen(true);
+  };
+
+  const validate = () => {
+    if (!formData.name.trim()) {
+      toast({
+        title: "Missing name",
+        description: "Please enter a category name.",
+        variant: "destructive",
+      });
+    }
+    return !!formData.name.trim();
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setIsSaving(true);
+    try {
+      let result;
+      if (editingCategory) {
+        // PUT or PATCH both are fine; using PUT for consistency
+        result = await api.put(`/admin/categories/${editingCategory.id}/`, {
+          name: formData.name.trim(),
+        });
+      } else {
+        result = await api.post("/admin/categories/", {
+          name: formData.name.trim(),
+        });
+      }
+
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: editingCategory
+            ? "Category updated."
+            : "Category created.",
+        });
+        await loadCategories(page);
+        resetForm();
+        setIsAddDialogOpen(false);
+        setIsEditDialogOpen(false);
+      } else {
+        toast({
+          title: "Error",
+          description:
+            result.error ||
+            (editingCategory
+              ? "Failed to update category."
+              : "Failed to create category."),
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    setIsDeletingId(id);
+    try {
+      const res = await api.delete(`/admin/categories/${id}/`);
+      if (res.success) {
+        toast({ title: "Deleted", description: "Category deleted." });
+        // Reload current page; if last item on page was removed and you want to be fancy,
+        // you could check and go to previous page.
+        await loadCategories(page);
+      } else {
+        toast({
+          title: "Error",
+          description: res.error || "Failed to delete category.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsDeletingId(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-500"></div>
+        <span className="ml-4 text-lg text-gray-400">Loading...</span>
+      </div>
+    );
+  }
 
   return (
     <>
       <Helmet>
-        <title>Categories - E-Commerce Admin Dashboard</title>
+        <title>Categories - Admin</title>
         <meta
           name="description"
-          content="Manage product categories, organize your inventory, and create new product categories for your e-commerce store."
+          content="Manage product categories, organize your inventory, and create new categories."
         />
       </Helmet>
 
@@ -90,7 +198,7 @@ export function Categories() {
             <DialogTrigger asChild>
               <Button
                 className="glass-button bg-white hover:bg-gray-100 text-black border border-gray-200"
-                onClick={resetForm}
+                onClick={handleAddOpen}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Category
@@ -100,7 +208,12 @@ export function Categories() {
               <DialogHeader>
                 <DialogTitle>Add New Category</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form
+                onSubmit={handleSubmit}
+                className={`space-y-4 ${
+                  isSaving ? "opacity-70 pointer-events-none" : ""
+                }`}
+              >
                 <div className="space-y-2">
                   <Label htmlFor="name">Category Name</Label>
                   <Input
@@ -111,6 +224,7 @@ export function Categories() {
                     }
                     className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
                     placeholder="Enter category name"
+                    disabled={isSaving}
                     required
                   />
                 </div>
@@ -121,21 +235,30 @@ export function Categories() {
                     variant="outline"
                     onClick={() => setIsAddDialogOpen(false)}
                     className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                    disabled={isSaving}
                   >
                     Cancel
                   </Button>
                   <Button
                     type="submit"
                     className="glass-button bg-white hover:bg-gray-100 text-black border border-gray-200"
+                    disabled={isSaving}
                   >
-                    Add Category
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Add Category"
+                    )}
                   </Button>
                 </div>
               </form>
             </DialogContent>
           </Dialog>
         </div>
-        ---
+
         {/* Categories Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {categories.map((category) => (
@@ -147,7 +270,6 @@ export function Categories() {
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  {/* Changed gradient to grayscale */}
                   <div className="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center">
                     <Tag className="w-6 h-6 text-white" />
                   </div>
@@ -159,42 +281,133 @@ export function Categories() {
                   </div>
                 </div>
 
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="glass-card border-gray-700 text-white bg-gray-900">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Category</AlertDialogTitle>
-                      <AlertDialogDescription className="text-gray-400">
-                        Are you sure you want to delete "{category.name}"? This
-                        action cannot be undone and may affect products in this
-                        category.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel className="border-gray-600 text-gray-300 hover:bg-gray-700">
-                        Cancel
-                      </AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => handleDelete(category.id)}
-                        className="bg-red-600 hover:bg-red-700 text-white border border-red-500"
+                <div className="flex items-center gap-2">
+                  {/* Edit */}
+                  <Dialog
+                    open={
+                      isEditDialogOpen && editingCategory?.id === category.id
+                    }
+                    onOpenChange={(open) => {
+                      if (!open) {
+                        setIsEditDialogOpen(false);
+                        setEditingCategory(null);
+                        resetForm();
+                      }
+                    }}
+                  >
+                    <DialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-gray-500/30 text-gray-200 hover:bg-gray-500/10"
+                        onClick={() => handleEditOpen(category)}
                       >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="glass-card border-gray-700 text-white bg-gray-900">
+                      <DialogHeader>
+                        <DialogTitle>Edit Category</DialogTitle>
+                      </DialogHeader>
+                      <form
+                        onSubmit={handleSubmit}
+                        className={`space-y-4 ${
+                          isSaving ? "opacity-70 pointer-events-none" : ""
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <Label htmlFor={`name_edit_${category.id}`}>
+                            Category Name
+                          </Label>
+                          <Input
+                            id={`name_edit_${category.id}`}
+                            value={formData.name}
+                            onChange={(e) =>
+                              setFormData({ ...formData, name: e.target.value })
+                            }
+                            className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
+                            placeholder="Enter category name"
+                            disabled={isSaving}
+                            required
+                          />
+                        </div>
+
+                        <div className="flex justify-end space-x-2 pt-4">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setIsEditDialogOpen(false);
+                              setEditingCategory(null);
+                              resetForm();
+                            }}
+                            className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                            disabled={isSaving}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="submit"
+                            className="glass-button bg-white hover:bg-gray-100 text-black border border-gray-200"
+                            disabled={isSaving}
+                          >
+                            {isSaving ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              "Save changes"
+                            )}
+                          </Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* Delete */}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                        disabled={isDeletingId === category.id}
+                      >
+                        {isDeletingId === category.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="glass-card border-gray-700 text-white bg-gray-900">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Category</AlertDialogTitle>
+                        <AlertDialogDescription className="text-gray-400">
+                          Are you sure you want to delete "{category.name}"?
+                          This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel className="border-gray-600 text-gray-300 hover:bg-gray-700">
+                          Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(category.id)}
+                          className="bg-red-600 hover:bg-red-700 text-white border border-red-500"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
             </motion.div>
           ))}
         </div>
+
         {categories.length === 0 && (
           <div className="glass-card p-12 text-center border-gray-800">
             <FolderOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -204,6 +417,23 @@ export function Categories() {
             <p className="text-gray-400">
               Create your first category to organize products
             </p>
+          </div>
+        )}
+
+        {(prevPage || nextPage) && (
+          <div className="flex justify-between mt-4">
+            <Button
+              onClick={() => loadCategories(page - 1)}
+              disabled={!prevPage}
+            >
+              Previous
+            </Button>
+            <Button
+              onClick={() => loadCategories(page + 1)}
+              disabled={!nextPage}
+            >
+              Next
+            </Button>
           </div>
         )}
       </div>

@@ -1,3 +1,4 @@
+// ✅ Products.jsx — create with category + specifications, search, list, edit/delete dialogs
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Helmet } from "react-helmet";
@@ -18,7 +19,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/admin/ui/dialog";
 import {
   AlertDialog,
@@ -33,88 +33,241 @@ import {
 } from "@/components/admin/ui/alert-dialog";
 import { useAdminApi } from "@/contexts/AdminAPI";
 import { toast } from "@/components/ui/use-toast";
-import { Plus, Edit, Trash2, Search, Package } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Package, Loader2 } from "lucide-react";
 
 export function Products() {
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [page, setPage] = useState(1);
+  const [nextPage, setNextPage] = useState(null);
+  const [prevPage, setPrevPage] = useState(null);
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+
+  const [categories, setCategories] = useState([]);
+  const [loadingCats, setLoadingCats] = useState(false);
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     price: "",
     image_url: "",
-    category_id: "",
+    category_id: "", // REQUIRED by serializer
     is_in_stock: true,
   });
+
+  // specs as editable rows, then converted to object on submit
+  const [specRows, setSpecRows] = useState([{ key: "", value: "" }]);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false); // ⬅️ spinner for POST/PUT
 
   const api = useAdminApi();
 
   useEffect(() => {
-    loadProducts();
-    loadCategories();
+    loadProducts(1);
   }, []);
 
-  const loadProducts = async () => {
-    const result = await api.get("/products/");
-    if (result.success) {
-      setProducts(result.data);
+  const loadProducts = async (pageNum = 1, search = searchTerm) => {
+    setIsLoading(true);
+    try {
+      let url = `/admin/products/?page=${pageNum}`;
+      if (search && search.trim() !== "") {
+        url += `&search=${encodeURIComponent(search.trim())}`;
+      }
+      const result = await api.get(url);
+      const list = result?.data?.results ?? [];
+      setProducts(list);
+      setNextPage(result?.data?.next);
+      setPrevPage(result?.data?.previous);
+      setPage(pageNum);
+    } catch (err) {
+      console.error("Failed to load products", err);
+      setProducts([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const loadCategories = async () => {
-    const result = await api.get("/categories/");
-    if (result.success) {
-      setCategories(result.data);
+    setLoadingCats(true);
+    try {
+      const res = await api.get("/admin/categories/");
+      const data = Array.isArray(res?.data?.results)
+        ? res.data.results
+        : res?.data ?? [];
+      setCategories(data);
+    } catch (e) {
+      console.error("Failed to load categories", e);
+      toast({
+        title: "Error loading categories",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingCats(false);
     }
+  };
+
+  // Load categories whenever an Add/Edit dialog opens
+  useEffect(() => {
+    if (isAddDialogOpen || isEditDialogOpen) loadCategories();
+  }, [isAddDialogOpen, isEditDialogOpen]);
+
+  const handleSearch = () => loadProducts(1, searchTerm);
+
+  const coerceSpecValue = (raw) => {
+    const val = String(raw ?? "").trim();
+    if (val === "") return "";
+    const lower = val.toLowerCase();
+    if (lower === "true") return true;
+    if (lower === "false") return false;
+    if (lower === "null") return null;
+    if (!isNaN(Number(val))) return Number(val);
+    return val;
+  };
+
+  const buildSpecObject = () => {
+    const obj = {};
+    specRows.forEach(({ key, value }) => {
+      const k = (key || "").trim();
+      if (!k || k.toLowerCase() === "updated_at") return; // ignore empty/reserved
+      obj[k] = coerceSpecValue(value);
+    });
+    return obj;
+  };
+
+  const validateForm = () => {
+    if (!formData.name.trim()) {
+      toast({
+        title: "Missing name",
+        description: "Please enter a product name.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    const priceNum = Number(formData.price);
+    if (!Number.isFinite(priceNum) || priceNum < 0) {
+      toast({
+        title: "Invalid price",
+        description: "Price must be a non-negative number.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    if (!formData.category_id || Number.isNaN(Number(formData.category_id))) {
+      toast({
+        title: "Missing category",
+        description: "Please select a category.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    // spec keys duplicate check (excluding empty and 'updated_at')
+    const keys = specRows
+      .map((r) => (r.key || "").trim().toLowerCase())
+      .filter((k) => k && k !== "updated_at");
+    const hasDup = new Set(keys).size !== keys.length;
+    if (hasDup) {
+      toast({
+        title: "Duplicate specification keys",
+        description: "Please ensure each specification key is unique.",
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateForm()) return;
+
     const productData = {
-      ...formData,
-      price: parseFloat(formData.price),
-      category_id: parseInt(formData.category_id),
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      price: Number(formData.price),
+      image_urls: formData.image_url ? [formData.image_url.trim()] : [],
+      category: parseInt(formData.category_id, 10),
+      specification: buildSpecObject(), // dict
+      is_in_stock: !!formData.is_in_stock,
     };
 
-    let result;
-    if (editingProduct) {
-      result = await api.put(`/products/${editingProduct.id}/`, productData);
-    } else {
-      result = await api.post("/products/", productData);
-    }
+    setIsSaving(true); // start spinner
+    try {
+      let result;
+      if (editingProduct) {
+        result = await api.put(
+          `/admin/products/${editingProduct.id}/`,
+          productData
+        );
+      } else {
+        result = await api.post("/admin/products/", productData);
+      }
 
-    if (result.success) {
-      loadProducts();
-      resetForm();
-      setIsAddDialogOpen(false);
-      setIsEditDialogOpen(false);
+      if (result.success) {
+        toast({ title: "Success", description: "Product saved successfully." });
+        await loadProducts(page);
+        resetForm();
+        setIsAddDialogOpen(false);
+        setIsEditDialogOpen(false);
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to save product.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsSaving(false); // stop spinner
     }
   };
 
   const handleEdit = (product) => {
     setEditingProduct(product);
     setFormData({
-      name: product.name,
-      description: product.description,
-      price: product.price.toString(),
-      image_url: product.image_url,
-      category_id: product.category_id.toString(),
-      is_in_stock: product.is_in_stock,
+      name: product.name ?? "",
+      description: product.description ?? "",
+      price: (product.price ?? "").toString(),
+      image_url: product.image_urls?.[0] || "",
+      category_id: product.category ? String(product.category) : "",
+      is_in_stock: !!product.is_in_stock,
     });
+    // prefill spec rows from object (ignore 'updated_at')
+    const specObj =
+      product.specification &&
+      typeof product.specification === "object" &&
+      !Array.isArray(product.specification)
+        ? product.specification
+        : {};
+    const rows = Object.entries(specObj)
+      .filter(([k]) => String(k).toLowerCase() !== "updated_at")
+      .map(([k, v]) => ({ key: String(k), value: String(v ?? "") }));
+    setSpecRows(rows.length ? rows : [{ key: "", value: "" }]);
     setIsEditDialogOpen(true);
   };
 
-  const handleDelete = async (id) => {
-    const result = await api.delete(`/products/${id}/`);
-    if (result.success) {
-      loadProducts();
-    }
+  // ❗ WIP: Delete stub (toast only)
+  const handleDelete = async (_id) => {
+    toast({
+      title: "Work in progress",
+      description:
+        "Deleting is still at phase work in progress, please check again.",
+    });
+    // when ready, swap to:
+    // const result = await api.delete(`/admin/products/${id}/`);
+    // ...
   };
+
+  const addSpecRow = () => setSpecRows((r) => [...r, { key: "", value: "" }]);
+  const removeSpecRow = (idx) =>
+    setSpecRows((r) => r.filter((_, i) => i !== idx));
+  const updateSpecRow = (idx, field, val) =>
+    setSpecRows((r) =>
+      r.map((row, i) => (i === idx ? { ...row, [field]: val } : row))
+    );
 
   const resetForm = () => {
     setFormData({
@@ -125,436 +278,498 @@ export function Products() {
       category_id: "",
       is_in_stock: true,
     });
+    setSpecRows([{ key: "", value: "" }]);
     setEditingProduct(null);
   };
 
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "all" ||
-      product.category_id.toString() === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const getCategoryName = (categoryId) => {
-    const category = categories.find((cat) => cat.id === categoryId);
-    return category ? category.name : "Unknown";
-  };
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-500"></div>
+        <span className="ml-4 text-lg text-gray-400">Loading...</span>
+      </div>
+    );
+  }
 
   return (
     <>
       <Helmet>
-        <title>Products - E-Commerce Admin Dashboard</title>
-        <meta
-          name="description"
-          content="Manage your e-commerce products, add new items, edit existing products, and track inventory."
-        />
+        <title>Products - Admin</title>
       </Helmet>
 
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-white">Products</h1>
             <p className="text-gray-400 mt-1">Manage your product catalog</p>
           </div>
-
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button
-                className="glass-button bg-white hover:bg-gray-100 text-black border border-gray-200"
-                onClick={resetForm}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Product
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="glass-card border-gray-700 text-white max-w-2xl bg-gray-900">
-              <DialogHeader>
-                <DialogTitle>Add New Product</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Product Name</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
-                      className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="price">Price</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      step="0.01"
-                      value={formData.price}
-                      onChange={(e) =>
-                        setFormData({ ...formData, price: e.target.value })
-                      }
-                      className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                    className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="image_url">Image URL</Label>
-                    <Input
-                      id="image_url"
-                      value={formData.image_url}
-                      onChange={(e) =>
-                        setFormData({ ...formData, image_url: e.target.value })
-                      }
-                      className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
-                      placeholder="https://example.com/image.jpg"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Category</Label>
-                    <Select
-                      value={formData.category_id}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, category_id: value })
-                      }
-                    >
-                      <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-gray-800 border-gray-700 text-white">
-                        {categories.map((category) => (
-                          <SelectItem
-                            key={category.id}
-                            value={category.id.toString()}
-                          >
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2 text-white">
-                  <Checkbox
-                    id="is_in_stock"
-                    checked={formData.is_in_stock}
-                    onCheckedChange={(checked) =>
-                      setFormData({ ...formData, is_in_stock: checked })
-                    }
-                  />
-                  <Label htmlFor="is_in_stock">In Stock</Label>
-                </div>
-
-                <div className="flex justify-end space-x-2 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsAddDialogOpen(false)}
-                    className="border-gray-600 text-gray-300 hover:bg-gray-700"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="glass-button bg-white hover:bg-gray-100 text-black border border-gray-200"
-                  >
-                    Add Product
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button
+            onClick={() => {
+              resetForm();
+              setIsAddDialogOpen(true);
+            }}
+          >
+            <Plus className="w-4 h-4 mr-2" /> Add Product
+          </Button>
         </div>
-        ---
-        {/* Filters */}
-        <div className="glass-card p-6 border-gray-800">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
-                />
-              </div>
-            </div>
-            <div className="w-full md:w-48">
-              <Select
-                value={selectedCategory}
-                onValueChange={setSelectedCategory}
-              >
-                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700 text-white">
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem
-                      key={category.id}
-                      value={category.id.toString()}
-                    >
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+
+        {/* Search */}
+        <div className="flex items-center gap-4">
+          <Input
+            placeholder="Search products..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full max-w-sm text-black"
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          />
+          <Button onClick={handleSearch} className="text-white">
+            <Search className="w-4 h-4 mr-1" /> Search
+          </Button>
         </div>
-        ---
-        {/* Products Grid */}
+
+        {/* Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProducts.map((product) => (
+          {products.map((product) => (
             <motion.div
               key={product.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="glass-card p-6 border-gray-800 hover:bg-gray-800/50 transition-all duration-300"
+              className="p-4 border rounded-lg bg-gray-800 text-white"
             >
-              <div className="aspect-square bg-gray-800 rounded-lg mb-4 overflow-hidden">
-                {product.image_url ? (
+              <div className="aspect-square mb-4">
+                {product.image_urls?.[0] ? (
                   <img
-                    src={product.image_url}
+                    src={product.image_urls[0]}
                     alt={product.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover rounded"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
+                  <div className="w-full h-full flex items-center justify-center bg-gray-700 rounded">
                     <Package className="w-12 h-12 text-gray-400" />
                   </div>
                 )}
               </div>
-
-              <div className="space-y-2">
-                <div className="flex items-start justify-between">
-                  <h3 className="font-semibold text-white truncate">
-                    {product.name}
-                  </h3>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      product.is_in_stock
-                        ? "bg-green-500/20 text-green-300 border border-green-500/30" // Still keeping green for "In Stock" for clear status
-                        : "bg-red-500/20 text-red-300 border border-red-500/30" // Still keeping red for "Out of Stock"
-                    }`}
-                  >
-                    {product.is_in_stock ? "In Stock" : "Out of Stock"}
-                  </span>
-                </div>
-
-                <p className="text-gray-400 text-sm line-clamp-2">
+              <div>
+                <h3 className="font-semibold text-xl">{product.name}</h3>
+                <p className="text-gray-400 text-sm mt-1 line-clamp-2">
                   {product.description}
                 </p>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-gray-300">
-                      {" "}
-                      {/* Changed price color */}${product.price}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {getCategoryName(product.category_id)}
-                    </p>
-                  </div>
-
-                  <div className="flex space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEdit(product)}
-                      className="border-gray-600 text-gray-300 hover:bg-gray-700"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                <p className="text-lg font-bold mt-2">${product.price}</p>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleEdit(product)}
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-500"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Product</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete "{product.name}"?
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(product.id)}
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="glass-card border-gray-700 text-white bg-gray-900">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Product</AlertDialogTitle>
-                          <AlertDialogDescription className="text-gray-400">
-                            Are you sure you want to delete "{product.name}"?
-                            This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel className="border-gray-600 text-gray-300 hover:bg-gray-700">
-                            Cancel
-                          </AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDelete(product.id)}
-                            className="bg-red-600 hover:bg-red-700 text-white border border-red-500" // Made delete button more consistent red
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
-        {filteredProducts.length === 0 && (
-          <div className="glass-card p-12 text-center border-gray-800">
-            <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-white mb-2">
-              No products found
-            </h3>
-            <p className="text-gray-400">
-              Try adjusting your search or filters
-            </p>
+
+        {products.length === 0 && (
+          <div className="text-center text-gray-400 py-12">
+            <Package className="w-12 h-12 mx-auto mb-2" />
+            <p>No products found.</p>
           </div>
         )}
-        {/* Edit Dialog - already updated in previous response, keeping it consistent */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="glass-card border-gray-700 text-white max-w-2xl bg-gray-900">
-            <DialogHeader>
-              <DialogTitle>Edit Product</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-name">Product Name</Label>
-                  <Input
-                    id="edit-name"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-price">Price</Label>
-                  <Input
-                    id="edit-price"
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) =>
-                      setFormData({ ...formData, price: e.target.value })
-                    }
-                    className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
-                    required
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="edit-description">Description</Label>
-                <Textarea
-                  id="edit-description"
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
-                  rows={3}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-image_url">Image URL</Label>
-                  <Input
-                    id="edit-image_url"
-                    value={formData.image_url}
-                    onChange={(e) =>
-                      setFormData({ ...formData, image_url: e.target.value })
-                    }
-                    className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
-                    placeholder="https://example.com/image.jpg"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-category">Category</Label>
-                  <Select
-                    value={formData.category_id}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, category_id: value })
-                    }
-                  >
-                    <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-800 border-gray-700 text-white">
-                      {categories.map((category) => (
-                        <SelectItem
-                          key={category.id}
-                          value={category.id.toString()}
-                        >
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2 text-white">
-                <Checkbox
-                  id="edit-is_in_stock"
-                  checked={formData.is_in_stock}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, is_in_stock: checked })
-                  }
-                />
-                <Label htmlFor="edit-is_in_stock">In Stock</Label>
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsEditDialogOpen(false)}
-                  className="border-gray-600 text-gray-300 hover:bg-gray-700"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="glass-button bg-white hover:bg-gray-100 text-black border border-gray-200"
-                >
-                  Update Product
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <div className="flex justify-between mt-4">
+          <Button onClick={() => loadProducts(page - 1)} disabled={!prevPage}>
+            Previous
+          </Button>
+          <Button onClick={() => loadProducts(page + 1)} disabled={!nextPage}>
+            Next
+          </Button>
+        </div>
       </div>
+
+      {/* ADD PRODUCT DIALOG (POST) */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Product</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={handleSubmit}
+            className={`space-y-4 ${
+              isSaving ? "opacity-70 pointer-events-none" : ""
+            }`}
+          >
+            <div>
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                className="text-black"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                disabled={isSaving}
+                required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                className="text-black"
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                disabled={isSaving}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="price">Price</Label>
+              <Input
+                id="price"
+                type="number"
+                step="0.01"
+                min="0"
+                className="text-black"
+                value={formData.price}
+                onChange={(e) =>
+                  setFormData({ ...formData, price: e.target.value })
+                }
+                disabled={isSaving}
+                required
+              />
+            </div>
+
+            {/* Category Select (required) */}
+            <div>
+              <Label>Category</Label>
+              <Select
+                value={formData.category_id || ""}
+                onValueChange={(val) =>
+                  setFormData({ ...formData, category_id: val })
+                }
+                disabled={loadingCats || isSaving}
+              >
+                <SelectTrigger className="text-left">
+                  <SelectValue
+                    placeholder={
+                      loadingCats ? "Loading..." : "Select a category"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="image_url">Image URL</Label>
+              <Input
+                id="image_url"
+                className="text-black"
+                value={formData.image_url}
+                onChange={(e) =>
+                  setFormData({ ...formData, image_url: e.target.value })
+                }
+                placeholder="https://…"
+                disabled={isSaving}
+              />
+            </div>
+
+            {/* Specifications */}
+            <div className="space-y-2">
+              <Label>Specifications</Label>
+              {specRows.map((row, idx) => (
+                <div className="grid grid-cols-12 gap-2" key={idx}>
+                  <Input
+                    className="col-span-5 text-black"
+                    placeholder="key (e.g., color)"
+                    value={row.key}
+                    onChange={(e) => updateSpecRow(idx, "key", e.target.value)}
+                    disabled={isSaving}
+                  />
+                  <Input
+                    className="col-span-6 text-black"
+                    placeholder="value (e.g., red)"
+                    value={row.value}
+                    onChange={(e) =>
+                      updateSpecRow(idx, "value", e.target.value)
+                    }
+                    disabled={isSaving}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="col-span-1"
+                    onClick={() => removeSpecRow(idx)}
+                    title="Remove"
+                    disabled={isSaving}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={addSpecRow}
+                disabled={isSaving}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add spec
+              </Button>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="in_stock"
+                checked={formData.is_in_stock}
+                onCheckedChange={(v) =>
+                  setFormData({ ...formData, is_in_stock: Boolean(v) })
+                }
+                disabled={isSaving}
+              />
+              <Label htmlFor="in_stock">In stock</Label>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddDialogOpen(false)}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={loadingCats || !formData.category_id || isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save"
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* EDIT PRODUCT DIALOG (PUT) */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={handleSubmit}
+            className={`space-y-4 ${
+              isSaving ? "opacity-70 pointer-events-none" : ""
+            }`}
+          >
+            <div>
+              <Label htmlFor="name_edit">Name</Label>
+              <Input
+                id="name_edit"
+                className="text-black"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                disabled={isSaving}
+                required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="description_edit">Description</Label>
+              <Textarea
+                id="description_edit"
+                className="text-black"
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                disabled={isSaving}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="price_edit">Price</Label>
+              <Input
+                id="price_edit"
+                type="number"
+                step="0.01"
+                min="0"
+                className="text-black"
+                value={formData.price}
+                onChange={(e) =>
+                  setFormData({ ...formData, price: e.target.value })
+                }
+                disabled={isSaving}
+                required
+              />
+            </div>
+
+            {/* Category Select (required for PUT) */}
+            <div>
+              <Label>Category</Label>
+              <Select
+                value={formData.category_id || ""}
+                onValueChange={(val) =>
+                  setFormData({ ...formData, category_id: val })
+                }
+                disabled={loadingCats || isSaving}
+              >
+                <SelectTrigger className="text-left">
+                  <SelectValue
+                    placeholder={
+                      loadingCats ? "Loading..." : "Select a category"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="image_url_edit">Image URL</Label>
+              <Input
+                id="image_url_edit"
+                className="text-black"
+                value={formData.image_url}
+                onChange={(e) =>
+                  setFormData({ ...formData, image_url: e.target.value })
+                }
+                placeholder="https://…"
+                disabled={isSaving}
+              />
+            </div>
+
+            {/* Specifications (Edit) */}
+            <div className="space-y-2">
+              <Label>Specifications</Label>
+              {specRows.map((row, idx) => (
+                <div className="grid grid-cols-12 gap-2" key={idx}>
+                  <Input
+                    className="col-span-5 text-black"
+                    placeholder="key (e.g., color)"
+                    value={row.key}
+                    onChange={(e) => updateSpecRow(idx, "key", e.target.value)}
+                    disabled={isSaving}
+                  />
+                  <Input
+                    className="col-span-6 text-black"
+                    placeholder="value (e.g., red)"
+                    value={row.value}
+                    onChange={(e) =>
+                      updateSpecRow(idx, "value", e.target.value)
+                    }
+                    disabled={isSaving}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="col-span-1"
+                    onClick={() => removeSpecRow(idx)}
+                    title="Remove"
+                    disabled={isSaving}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={addSpecRow}
+                disabled={isSaving}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add spec
+              </Button>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="in_stock_edit"
+                checked={formData.is_in_stock}
+                onCheckedChange={(v) =>
+                  setFormData({ ...formData, is_in_stock: Boolean(v) })
+                }
+                disabled={isSaving}
+              />
+              <Label htmlFor="in_stock_edit">In stock</Label>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditDialogOpen(false)}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={loadingCats || !formData.category_id || isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save changes"
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
