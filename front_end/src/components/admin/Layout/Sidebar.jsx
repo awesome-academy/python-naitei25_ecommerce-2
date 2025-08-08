@@ -1,19 +1,14 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
-import {
-  Package,
-  ShoppingCart,
-  Users,
-  FolderOpen,
-  LogOut,
-} from 'lucide-react';
-import { Button } from '@/components/admin/ui/button';
-import { useAdminAuth as useAuth } from '@/contexts/AdminAuth';
+import React from "react";
+import { NavLink } from "react-router-dom";
+import { Package, ShoppingCart, Users, FolderOpen, LogOut } from "lucide-react";
+import { Button } from "@/components/admin/ui/button";
+import { useAdminAuth as useAuth } from "@/contexts/AdminAuth";
 
 const navigation = [
-  { name: 'Products', href: '/admin/products', icon: Package },
-  { name: 'Orders', href: '/admin/orders', icon: ShoppingCart },
-  { name: 'Categories', href: '/admin/categories', icon: FolderOpen },
+  { name: "Products", href: "/admin/products", icon: Package },
+  { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
+  { name: "Categories", href: "/admin/categories", icon: FolderOpen },
+  { name: "Users", href: "/admin/users", icon: Users },
 ];
 
 export function Sidebar() {
@@ -45,8 +40,8 @@ export function Sidebar() {
               className={({ isActive }) =>
                 `flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
                   isActive
-                    ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 text-blue-300'
-                    : 'hover:bg-white/5 text-gray-300 hover:text-white'
+                    ? "bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 text-blue-300"
+                    : "hover:bg-white/5 text-gray-300 hover:text-white"
                 }`
               }
             >
@@ -61,11 +56,13 @@ export function Sidebar() {
           <div className="flex items-center space-x-3 mb-4">
             <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center">
               <span className="text-sm font-semibold text-white">
-                {user?.name?.charAt(0) || 'A'}
+                {user?.name?.charAt(0) || "A"}
               </span>
             </div>
             <div>
-              <p className="text-sm font-medium text-white">{user?.name || 'Admin'}</p>
+              <p className="text-sm font-medium text-white">
+                {user?.name || "Admin"}
+              </p>
               <p className="text-xs text-gray-400">{user?.email}</p>
             </div>
           </div>

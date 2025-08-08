@@ -17,7 +17,6 @@ export function useAdminApi() {
   const apiCall = async (endpoint, init) => {
     const url = API_BASE_URL + endpoint;
     const headers = getAuthHeaders();
-    const method = init.method || "GET";
 
     setLoading(true);
     try {
@@ -65,9 +64,13 @@ export function useAdminApi() {
     return apiCall(endpoint, { method: "PUT", body: JSON.stringify(body) });
   };
 
+  const patch = (endpoint, body) => {
+    return apiCall(endpoint, { method: "PATCH", body: JSON.stringify(body) });
+  };
+
   const del = (endpoint) => {
     return apiCall(endpoint, { method: "DELETE" });
   };
 
-  return { loading, get, post, put, delete: del };
+  return { loading, get, post, put, patch, delete: del };
 }

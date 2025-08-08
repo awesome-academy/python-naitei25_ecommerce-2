@@ -4,8 +4,8 @@ import { useAdminAuth, AdminAuthProvider } from "@/contexts/AdminAuth";
 import { Layout as AdminLayout } from "@/components/admin/Layout/Layout";
 import { LoginForm } from "@/components/admin/Auth/LoginForm";
 import { Products } from "@/pages/admin/Products";
-// import { Orders } from "@/pages/admin/Orders";
-// import { Users } from "@/pages/admin/Users";
+import { Orders } from "@/pages/admin/Orders";
+import { Users } from "@/pages/admin/Users";
 import { Categories } from "@/pages/admin/Categories";
 import { Toaster } from "@/components/admin/ui/toaster";
 import { toast } from "@/components/admin/ui/use-toast";
@@ -53,9 +53,8 @@ const AdminRoutesContent = () => {
             <Route index element={<Navigate to="/admin/products" replace />} />
             <Route path="products" element={<Products />} />
             <Route path="categories" element={<Categories />} />
-            {/* <Route path="orders" element={<Orders />} />
-            <Route path="categories" element={<Categories />} />
-            <Route path="users" element={<Users />} /> */}
+            <Route path="users" element={<Users />} />
+            <Route path="orders" element={<Orders />} />
           </Route>
         ) : (
           <Route
