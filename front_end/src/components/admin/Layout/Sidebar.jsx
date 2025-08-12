@@ -27,7 +27,7 @@ export function Sidebar() {
             <Package className="w-5 h-5 text-white" />
           </div>
           <span className="text-xl font-bold bg-gradient-to-r from-blue-500 to-white bg-clip-text text-transparent">
-            Admin Panel
+            Staff Panel
           </span>
         </div>
 

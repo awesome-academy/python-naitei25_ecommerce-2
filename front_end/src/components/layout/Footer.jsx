@@ -40,7 +40,7 @@ const Footer = () => {
             </a>
           </div>
           <span className="text-sm text-gray-500">
-            © 2024 Django Electro Store. All rights reserved.
+            © 2025 Django Electro Store. All rights reserved.
           </span>
         </div>
       </div>

@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 
 const AdminAuthContext = createContext(null);
 const URL_PREFIX = import.meta.env.VITE_API_URL;
@@ -9,20 +16,51 @@ export function AdminAuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
 
-  // bootstrap from storage once
-  useEffect(() => {
-    const token = localStorage.getItem("admin_token");
-    const raw = localStorage.getItem("admin_user");
-    if (token && raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        setIsAuthenticated(true);
-        setUser(parsed);
-        setIsAdmin(parsed.is_superuser === true);
-      } catch {}
-    }
-    setIsLoading(false);
+  const resetAuth = useCallback(() => {
+    localStorage.removeItem("admin_token");
+    localStorage.removeItem("admin_user");
+    setIsAuthenticated(false);
+    setIsAdmin(false);
+    setUser(null);
   }, []);
+
+  const verifyAdminSession = useCallback(async () => {
+    const token = localStorage.getItem("admin_token");
+    const rawUser = localStorage.getItem("admin_user");
+    if (!token || !rawUser) {
+      resetAuth();
+      return false;
+    }
+
+    try {
+      const res = await fetch(`${URL_PREFIX}/api/admin/orders/`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        resetAuth();
+        return false;
+      }
+
+      const parsed = JSON.parse(rawUser);
+      setIsAuthenticated(true);
+      setUser(parsed);
+      setIsAdmin(parsed.is_superuser === true);
+      return true;
+    } catch {
+      resetAuth();
+      return false;
+    }
+  }, [resetAuth]);
+
+  useEffect(() => {
+    (async () => {
+      setIsLoading(true);
+      await verifyAdminSession();
+      setIsLoading(false);
+    })();
+  }, [verifyAdminSession]);
 
   const login = async (email, password) => {
     try {
@@ -40,24 +78,33 @@ export function AdminAuthProvider({ children }) {
       setIsAuthenticated(true);
       setUser(data.user);
       setIsAdmin(data.user.is_superuser === true);
-
       return { success: true };
     } catch {
       return { success: false, error: "Network error" };
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("admin_token");
-    localStorage.removeItem("admin_user");
-    setIsAuthenticated(false);
-    setIsAdmin(false);
-    setUser(null);
-  };
+  const logout = () => resetAuth();
 
   const value = useMemo(
-    () => ({ isAuthenticated, isAdmin, isLoading, user, login, logout }),
-    [isAuthenticated, isAdmin, isLoading, user]
+    () => ({
+      isAuthenticated,
+      isAdmin,
+      isLoading,
+      user,
+      login,
+      logout,
+      verifyAdminSession,
+    }),
+    [
+      isAuthenticated,
+      isAdmin,
+      isLoading,
+      user,
+      login,
+      logout,
+      verifyAdminSession,
+    ]
   );
 
   return (
@@ -69,8 +116,7 @@ export function AdminAuthProvider({ children }) {
 
 export function useAdminAuth() {
   const ctx = useContext(AdminAuthContext);
-  if (!ctx) {
+  if (!ctx)
     throw new Error("useAdminAuth must be used within an AdminAuthProvider");
-  }
   return ctx;
 }
