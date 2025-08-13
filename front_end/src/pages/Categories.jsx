@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+// src/pages/Categories.jsx
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { motion } from "framer-motion";
@@ -8,21 +9,46 @@ import { useToast } from "@/components/ui/use-toast";
 import ProductCard from "@/components/products/ProductCard";
 import CategorySidebar from "@/components/categories/CategorySidebar";
 
+const DEBOUNCE_MS = 400;
+
 const Categories = () => {
   const { categoryId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+
   const [searchTerm, setSearchTerm] = useState(
     searchParams.get("search") || ""
   );
   const [selectedCategory, setSelectedCategory] = useState(
-    categoryId ? parseInt(categoryId) : ""
+    categoryId ? parseInt(categoryId, 10) : ""
   );
+
+  const [products, setProducts] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [nextUrl, setNextUrl] = useState(null);
+
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
   const [isProductsLoading, setIsProductsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const urlTerm = searchParams.get("search") || "";
+    setSearchTerm(urlTerm);
+  }, [searchParams]);
+
+  useEffect(() => {
+    setSelectedCategory(categoryId ? parseInt(categoryId, 10) : "");
+  }, [categoryId]);
+
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -48,55 +74,88 @@ const Categories = () => {
     fetchCategories();
   }, [toast]);
 
-  useEffect(() => {
-    setSearchTerm(searchParams.get("search") || "");
-  }, [searchParams]);
+  const buildProductsUrl = (pageNumber = 1) => {
+    let url = `${import.meta.env.VITE_API_URL}/api/products/`;
+    const params = new URLSearchParams();
+    if (selectedCategory) params.append("category", selectedCategory);
+    if (debouncedSearchTerm) params.append("search", debouncedSearchTerm);
+    if (pageNumber && pageNumber > 1) params.append("page", String(pageNumber));
+    if (params.toString()) url += `?${params.toString()}`;
+    return url;
+  };
 
   useEffect(() => {
-    setSelectedCategory(categoryId ? parseInt(categoryId) : "");
-  }, [categoryId]);
+    let abort = new AbortController();
 
-  useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchFirstPage = async () => {
       setIsProductsLoading(true);
+      setPage(1);
       try {
-        let url = `${import.meta.env.VITE_API_URL}/api/products/`;
-        if (selectedCategory) {
-          url += `?category=${selectedCategory}`;
-        }
+        const url = buildProductsUrl(1);
+        const res = await fetch(url, { signal: abort.signal });
+        if (!res.ok) throw new Error("Failed to fetch products");
+        const data = await res.json();
 
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Failed to fetch products");
-        const data = await response.json();
-        setProducts(data.results || data);
+        // DRF paginated or plain list
+        const results = Array.isArray(data) ? data : data.results || [];
+        setProducts(results);
+        setTotalCount(
+          Array.isArray(data) ? results.length : data.count ?? results.length
+        );
+        setNextUrl(Array.isArray(data) ? null : data.next);
       } catch (error) {
-        setProducts([]);
-        toast({
-          variant: "destructive",
-          title: "Database Error",
-          description: error.message || "Could not fetch products.",
-        });
+        if (error.name !== "AbortError") {
+          setProducts([]);
+          setTotalCount(0);
+          setNextUrl(null);
+          toast({
+            variant: "destructive",
+            title: "Database Error",
+            description: error.message || "Could not fetch products.",
+          });
+        }
       } finally {
         setIsProductsLoading(false);
       }
     };
-    fetchProducts();
-  }, [selectedCategory, toast]);
 
-  const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase())
+    fetchFirstPage();
+    return () => abort.abort();
+  }, [selectedCategory, debouncedSearchTerm, toast]);
+
+  const loadMore = async () => {
+    if (!nextUrl) return;
+    setIsLoadingMore(true);
+    try {
+      const res = await fetch(nextUrl);
+      if (!res.ok) throw new Error("Failed to fetch next page");
+      const data = await res.json();
+      const results = data.results || [];
+      setProducts((prev) => [...prev, ...results]);
+      setNextUrl(data.next);
+      setPage((p) => p + 1);
+      setTotalCount(data.count ?? totalCount);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Pagination Error",
+        description: error.message || "Could not load more products.",
+      });
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const currentCategory = useMemo(
+    () => categories.find((cat) => cat.id === selectedCategory),
+    [categories, selectedCategory]
   );
-
-  const currentCategory = categories.find((cat) => cat.id === selectedCategory);
 
   const handleSearchChange = (e) => {
     const newSearchTerm = e.target.value;
     setSearchTerm(newSearchTerm);
-    if (newSearchTerm) {
-      setSearchParams({ search: newSearchTerm });
-    } else {
-      setSearchParams({});
-    }
+    if (newSearchTerm) setSearchParams({ search: newSearchTerm });
+    else setSearchParams({});
   };
 
   return (
@@ -126,9 +185,7 @@ const Categories = () => {
           <CategorySidebar
             categories={categories}
             selectedCategory={selectedCategory}
-            onCategorySelect={(id) => {
-              navigate(`/categories/${id}`);
-            }}
+            onCategorySelect={(id) => navigate(`/categories/${id}`)}
           />
         </div>
 
@@ -142,7 +199,7 @@ const Categories = () => {
                 onChange={handleSearchChange}
                 className="pl-10"
               />
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
             </div>
           </div>
 
@@ -156,28 +213,44 @@ const Categories = () => {
               {currentCategory ? currentCategory.name : "All Products"}
             </h1>
             <p className="text-gray-600 mt-2">
-              {filteredProducts.length} products found
+              {totalCount} products found
+              {page > 1 ? ` • showing ${products.length}` : ""}
             </p>
           </motion.div>
 
-          {filteredProducts.length > 0 ? (
-            <motion.div
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              {filteredProducts.map((product, index) => (
-                <motion.div
-                  key={product.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.1 * index }}
-                >
-                  <ProductCard product={product} />
-                </motion.div>
-              ))}
-            </motion.div>
+          {products.length > 0 ? (
+            <>
+              <motion.div
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+              >
+                {products.map((product, index) => (
+                  <motion.div
+                    key={product.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.02 * index }}
+                  >
+                    <ProductCard product={product} />
+                  </motion.div>
+                ))}
+              </motion.div>
+
+              {/* Load more */}
+              {nextUrl && (
+                <div className="flex justify-center mt-10">
+                  <button
+                    onClick={loadMore}
+                    disabled={isLoadingMore}
+                    className="px-6 py-2 rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    {isLoadingMore ? "Loading..." : "Load more"}
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-12">
               <p className="text-gray-500">

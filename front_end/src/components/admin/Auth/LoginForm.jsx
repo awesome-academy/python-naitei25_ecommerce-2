@@ -115,7 +115,12 @@ export function LoginForm() {
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-black">Placeholder</p>
+              <p
+                className="text-sm text-black cursor-pointer"
+                onClick={() => navigate("/")}
+              >
+                Back to main page
+              </p>
             </div>
           </div>
         </motion.div>

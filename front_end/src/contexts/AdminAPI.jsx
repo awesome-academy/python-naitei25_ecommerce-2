@@ -17,19 +17,20 @@ export function useAdminApi() {
   const apiCall = async (endpoint, init) => {
     const url = API_BASE_URL + endpoint;
     const headers = getAuthHeaders();
-
     setLoading(true);
     try {
-      const response = await fetch(url, {
-        ...init,
-        headers,
-      });
+      const response = await fetch(url, { ...init, headers });
+
+      if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_user");
+      }
 
       if (!response.ok) {
         let errText = "";
         try {
           errText = await response.text();
-        } catch (parseErr) {}
+        } catch {}
         const errorMessage =
           `${response.status} ${response.statusText}` +
           (errText ? ` — ${errText}` : "");
@@ -72,5 +73,12 @@ export function useAdminApi() {
     return apiCall(endpoint, { method: "DELETE" });
   };
 
-  return { loading, get, post, put, patch, delete: del };
+  return {
+    loading,
+    get: (e) => apiCall(e, { method: "GET" }),
+    post: (e, b) => apiCall(e, { method: "POST", body: JSON.stringify(b) }),
+    put: (e, b) => apiCall(e, { method: "PUT", body: JSON.stringify(b) }),
+    patch: (e, b) => apiCall(e, { method: "PATCH", body: JSON.stringify(b) }),
+    delete: (e) => apiCall(e, { method: "DELETE" }),
+  };
 }

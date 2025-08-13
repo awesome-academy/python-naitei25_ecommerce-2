@@ -1,4 +1,4 @@
-// ✅ Categories.jsx — admin list/create/edit/delete with spinners
+// src/pages/admin/Categories.jsx
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Helmet } from "react-helmet";
@@ -48,7 +48,6 @@ export function Categories() {
 
   useEffect(() => {
     loadCategories(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const normalizeList = (data) =>
@@ -110,7 +109,6 @@ export function Categories() {
     try {
       let result;
       if (editingCategory) {
-        // PUT or PATCH both are fine; using PUT for consistency
         result = await api.put(`/admin/categories/${editingCategory.id}/`, {
           name: formData.name.trim(),
         });
@@ -153,8 +151,6 @@ export function Categories() {
       const res = await api.delete(`/admin/categories/${id}/`);
       if (res.success) {
         toast({ title: "Deleted", description: "Category deleted." });
-        // Reload current page; if last item on page was removed and you want to be fancy,
-        // you could check and go to previous page.
         await loadCategories(page);
       } else {
         toast({
@@ -171,7 +167,7 @@ export function Categories() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-700 border-t-transparent" />
         <span className="ml-4 text-lg text-gray-400">Loading...</span>
       </div>
     );
@@ -180,7 +176,7 @@ export function Categories() {
   return (
     <>
       <Helmet>
-        <title>Categories - Admin</title>
+        <title>Categories - Admin Dashboard</title>
         <meta
           name="description"
           content="Manage product categories, organize your inventory, and create new categories."
@@ -188,26 +184,28 @@ export function Categories() {
       </Helmet>
 
       <div className="space-y-6">
+        {/* Header (matches Orders.jsx tone) */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">Categories</h1>
-            <p className="text-gray-400 mt-1">Organize your product catalog</p>
+            <p className="text-gray-300">Organize your product catalog</p>
           </div>
 
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button
-                className="glass-button bg-white hover:bg-gray-100 text-black border border-gray-200"
+                className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
                 onClick={handleAddOpen}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Category
               </Button>
             </DialogTrigger>
-            <DialogContent className="glass-card border-gray-700 text-white bg-gray-900">
+            <DialogContent className="bg-gray-900 border border-gray-700 text-white">
               <DialogHeader>
                 <DialogTitle>Add New Category</DialogTitle>
               </DialogHeader>
+
               <form
                 onSubmit={handleSubmit}
                 className={`space-y-4 ${
@@ -222,7 +220,7 @@ export function Categories() {
                     onChange={(e) =>
                       setFormData({ ...formData, name: e.target.value })
                     }
-                    className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
+                    className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
                     placeholder="Enter category name"
                     disabled={isSaving}
                     required
@@ -234,14 +232,14 @@ export function Categories() {
                     type="button"
                     variant="outline"
                     onClick={() => setIsAddDialogOpen(false)}
-                    className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                    className="border-gray-700 text-gray-300 hover:bg-gray-700"
                     disabled={isSaving}
                   >
                     Cancel
                   </Button>
                   <Button
                     type="submit"
-                    className="glass-button bg-white hover:bg-gray-100 text-black border border-gray-200"
+                    className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
                     disabled={isSaving}
                   >
                     {isSaving ? (
@@ -259,18 +257,18 @@ export function Categories() {
           </Dialog>
         </div>
 
-        {/* Categories Grid */}
+        {/* Categories Grid (dark cards like Orders) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {categories.map((category) => (
             <motion.div
               key={category.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="glass-card p-6 border-gray-800 hover:bg-gray-800/50 transition-all duration-300"
+              className="bg-gray-900 border border-gray-700 rounded-md p-6 hover:bg-gray-800/60 transition-colors"
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center">
                     <Tag className="w-6 h-6 text-white" />
                   </div>
                   <div>
@@ -299,16 +297,18 @@ export function Categories() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-gray-500/30 text-gray-200 hover:bg-gray-500/10"
+                        className="border-gray-700 text-gray-300 hover:bg-gray-700"
                         onClick={() => handleEditOpen(category)}
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="glass-card border-gray-700 text-white bg-gray-900">
+
+                    <DialogContent className="bg-gray-900 border border-gray-700 text-white">
                       <DialogHeader>
                         <DialogTitle>Edit Category</DialogTitle>
                       </DialogHeader>
+
                       <form
                         onSubmit={handleSubmit}
                         className={`space-y-4 ${
@@ -325,7 +325,7 @@ export function Categories() {
                             onChange={(e) =>
                               setFormData({ ...formData, name: e.target.value })
                             }
-                            className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
+                            className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
                             placeholder="Enter category name"
                             disabled={isSaving}
                             required
@@ -341,14 +341,14 @@ export function Categories() {
                               setEditingCategory(null);
                               resetForm();
                             }}
-                            className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                            className="border-gray-700 text-gray-300 hover:bg-gray-700"
                             disabled={isSaving}
                           >
                             Cancel
                           </Button>
                           <Button
                             type="submit"
-                            className="glass-button bg-white hover:bg-gray-100 text-black border border-gray-200"
+                            className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
                             disabled={isSaving}
                           >
                             {isSaving ? (
@@ -371,7 +371,7 @@ export function Categories() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-red-500/30 text-red-400 hover:bg-red-500/10"
+                        className="border-red-500/40 text-red-400 hover:bg-red-900/20"
                         disabled={isDeletingId === category.id}
                       >
                         {isDeletingId === category.id ? (
@@ -381,7 +381,7 @@ export function Categories() {
                         )}
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent className="glass-card border-gray-700 text-white bg-gray-900">
+                    <AlertDialogContent className="bg-gray-900 border border-gray-700 text-white">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Category</AlertDialogTitle>
                         <AlertDialogDescription className="text-gray-400">
@@ -390,12 +390,12 @@ export function Categories() {
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel className="border-gray-600 text-gray-300 hover:bg-gray-700">
+                        <AlertDialogCancel className="border border-gray-700 text-gray-300 hover:bg-gray-800">
                           Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => handleDelete(category.id)}
-                          className="bg-red-600 hover:bg-red-700 text-white border border-red-500"
+                          className="bg-red-600 hover:bg-red-700 text-white"
                         >
                           Delete
                         </AlertDialogAction>
@@ -408,8 +408,9 @@ export function Categories() {
           ))}
         </div>
 
+        {/* Empty state */}
         {categories.length === 0 && (
-          <div className="glass-card p-12 text-center border-gray-800">
+          <div className="bg-gray-900 border border-gray-700 rounded-md p-12 text-center">
             <FolderOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-white mb-2">
               No categories found
@@ -420,17 +421,20 @@ export function Categories() {
           </div>
         )}
 
+        {/* Pagination buttons styled like Orders theme */}
         {(prevPage || nextPage) && (
           <div className="flex justify-between mt-4">
             <Button
               onClick={() => loadCategories(page - 1)}
               disabled={!prevPage}
+              className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700 disabled:opacity-50"
             >
               Previous
             </Button>
             <Button
               onClick={() => loadCategories(page + 1)}
               disabled={!nextPage}
+              className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700 disabled:opacity-50"
             >
               Next
             </Button>

@@ -10,22 +10,39 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
+const CANCEL_REASONS = [
+  { value: "CHANGE_MIND", label: "Changed my mind" },
+  { value: "FOUND_CHEAPER", label: "Found a cheaper option" },
+  { value: "WRONG_ORDER", label: "I ordered the wrong item" },
+  { value: "OTHER", label: "Other" },
+];
+
 const OrdersPage = () => {
   const { token } = useAuth();
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
+  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelReason, setCancelReason] = useState(CANCEL_REASONS[0].value);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const API_BASE = import.meta.env.VITE_API_URL;
+
   useEffect(() => {
     const fetchOrders = async () => {
+      if (!token) return;
+      setIsLoading(true);
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/orders/`, {
+        const res = await fetch(`${API_BASE}/api/orders/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!res.ok) throw new Error("Failed to fetch orders");
-        const { results } = await res.json();
-        setOrders(results);
+        if (!res.ok) throw new Error(`Failed to fetch orders (${res.status})`);
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data?.results ?? [];
+        setOrders(list);
       } catch (error) {
         console.error(error);
         toast({
@@ -38,7 +55,73 @@ const OrdersPage = () => {
       }
     };
     fetchOrders();
-  }, [token]);
+  }, [token, API_BASE]);
+
+  const openDetails = (order) => {
+    setSelectedOrder(order);
+    setShowCancelForm(false);
+    setCancelReason(CANCEL_REASONS[0].value);
+    setIsModalOpen(true);
+  };
+
+  const closeDetails = () => {
+    setIsModalOpen(false);
+    setSelectedOrder(null);
+    setShowCancelForm(false);
+  };
+
+  const formatMoney = (n) => {
+    const v = typeof n === "number" ? n : parseFloat(n ?? 0);
+    return v.toFixed(2);
+  };
+
+  const handleCancelOrder = async () => {
+    if (!selectedOrder) return;
+    setIsCancelling(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/orders/${selectedOrder.id}/`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ cancel_reason: cancelReason }),
+      });
+
+      if (!res.ok) {
+        let msg = `Failed to cancel (HTTP ${res.status})`;
+        try {
+          const err = await res.json();
+          msg += ` — ${JSON.stringify(err)}`;
+        } catch {
+          const txt = await res.text().catch(() => "");
+          if (txt) msg += ` — ${txt}`;
+        }
+        throw new Error(msg);
+      }
+
+      const updated = await res.json();
+      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      setSelectedOrder(updated);
+      setShowCancelForm(false);
+
+      toast({
+        title: "Order cancelled",
+        description: `Order #${updated.id} has been cancelled.`,
+      });
+    } catch (e) {
+      console.error(e);
+      toast({
+        title: "Could not cancel order",
+        description:
+          e.message ||
+          "The server rejected the request. Make sure the order is Pending and the reason is valid.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -68,8 +151,10 @@ const OrdersPage = () => {
                   variant={
                     order.order_status.toLowerCase() === "pending"
                       ? "secondary"
-                      : order.order_status.toLowerCase() === "completed"
+                      : order.order_status.toLowerCase() === "delivered"
                       ? "success"
+                      : order.order_status.toLowerCase() === "cancelled"
+                      ? "destructive"
                       : "outline"
                   }
                   className="uppercase"
@@ -89,7 +174,7 @@ const OrdersPage = () => {
                   <div>
                     Total:{" "}
                     <span className="font-semibold text-gray-800">
-                      ${order.total_amount}
+                      ${formatMoney(order.total_amount)}
                     </span>
                   </div>
                 </div>
@@ -105,19 +190,25 @@ const OrdersPage = () => {
                       <div>
                         {item.product_name} × {item.quantity}
                       </div>
-                      <div>${item.price_at_order}</div>
+                      <div>${formatMoney(item.price_at_order)}</div>
                     </li>
                   ))}
                 </ul>
 
-                <div className="text-right">
+                <div className="flex justify-end gap-2 mt-4">
+                  {order.can_cancel && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => openDetails(order)}
+                    >
+                      Cancel Order
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      setSelectedOrder(order);
-                      setIsModalOpen(true);
-                    }}
+                    onClick={() => openDetails(order)}
                   >
                     View Details
                   </Button>
@@ -147,10 +238,13 @@ const OrdersPage = () => {
               exit={{ y: -20, opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
             >
-              {/* Close button */}
+              {/* Close */}
               <button
                 className="absolute top-5 right-5 text-gray-500 hover:text-gray-800"
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setShowCancelForm(false);
+                }}
                 aria-label="Close order details"
               >
                 <X size={24} />
@@ -181,7 +275,7 @@ const OrdersPage = () => {
 
               <Separator className="my-6" />
 
-              {/* Line items */}
+              {/* Items */}
               <ul className="space-y-6">
                 {selectedOrder.items.map((item, idx) => (
                   <li
@@ -198,7 +292,8 @@ const OrdersPage = () => {
                     <div className="flex-1">
                       <p className="font-medium text-lg">{item.product_name}</p>
                       <p className="text-sm text-gray-500">
-                        Qty: {item.quantity} × ${item.price_at_order}
+                        Qty: {item.quantity} × $
+                        {formatMoney(item.price_at_order)}
                       </p>
                     </div>
                     <p className="font-semibold text-xl">
@@ -213,22 +308,72 @@ const OrdersPage = () => {
 
               <Separator className="my-8" />
 
-              {/* Total */}
-              <div className="text-right">
-                <p className="text-2xl font-bold">
-                  Total Amount: ${selectedOrder.total_amount}
-                </p>
-                <p className="mt-1 text-sm text-gray-500">
-                  Placed on{" "}
-                  {new Date(selectedOrder.ordered_at).toLocaleDateString(
-                    undefined,
-                    {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    }
-                  )}
-                </p>
+              {/* Footer */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="text-right sm:text-left">
+                  <p className="text-2xl font-bold">
+                    Total Amount: ${formatMoney(selectedOrder.total_amount)}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Placed on{" "}
+                    {new Date(selectedOrder.ordered_at).toLocaleDateString(
+                      undefined,
+                      {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      }
+                    )}
+                  </p>
+                </div>
+
+                {/* Cancel section */}
+                {selectedOrder.can_cancel && (
+                  <div className="w-full sm:w-auto">
+                    {!showCancelForm ? (
+                      <Button
+                        variant="destructive"
+                        onClick={() => setShowCancelForm(true)}
+                      >
+                        Cancel Order
+                      </Button>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                        <label className="text-sm text-gray-700">
+                          Reason:
+                          <select
+                            className="ml-2 border rounded-md px-2 py-1 text-sm"
+                            value={cancelReason}
+                            onChange={(e) => setCancelReason(e.target.value)}
+                            disabled={isCancelling}
+                          >
+                            {CANCEL_REASONS.map((r) => (
+                              <option key={r.value} value={r.value}>
+                                {r.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => setShowCancelForm(false)}
+                            disabled={isCancelling}
+                          >
+                            Back
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={handleCancelOrder}
+                            disabled={isCancelling}
+                          >
+                            {isCancelling ? "Cancelling..." : "Confirm Cancel"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </motion.div>
           </motion.div>

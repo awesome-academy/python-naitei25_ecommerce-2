@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 export function Header() {
   return (
@@ -6,9 +6,11 @@ export function Header() {
       <div className="flex items-center justify-between">
         <div>
           <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-white bg-clip-text text-transparent">
-            E-Commerce Staff
+            Django Electro Store Staff
           </span>
-          <p className="text-sm text-gray-400 mt-1">Your staff management dashboard</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Your staff management dashboard
+          </p>
         </div>
       </div>
     </header>
