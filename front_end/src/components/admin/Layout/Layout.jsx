@@ -5,7 +5,7 @@ import { Outlet } from "react-router-dom";
 
 export function Layout() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
+    <div className="min-h-screen bg-gray-50 text-gray-900">
       <div className="flex h-screen">
         <Sidebar />
 
