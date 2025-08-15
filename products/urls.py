@@ -35,6 +35,11 @@ urlpatterns = [
     path('api/admin/products/<int:pk>/', views.AdminProductDetailView.as_view(),
         name='admin_product_detail'
     ),
+    path(
+        'api/search/products/',
+        views.InstantProductSearchAPIView.as_view(),
+        name='instant_product_search',
+    ),
 
     # API documentation
     path('api/docs/', APIDocumentationView.as_view(), name='api_docs'),
