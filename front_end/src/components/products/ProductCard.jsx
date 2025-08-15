@@ -39,27 +39,28 @@ const ProductCard = ({ product }) => {
     <motion.div
       whileHover={{ y: -5 }}
       transition={{ duration: 0.2 }}
-      className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+      className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col"
     >
-      <Link to={`/product/${product.id}`}>
-        <div className="aspect-square overflow-hidden">
+      <Link to={`/product/${product.id}`} className="flex flex-col h-full">
+        {/* Fixed square image */}
+        <div className="w-full aspect-square bg-gray-100 overflow-hidden flex items-center justify-center">
           <img
             src={product.first_image || product.image_urls?.[0]}
             alt={product.name}
-            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-cover"
           />
         </div>
 
-        <div className="p-4">
-          <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
+        <div className="p-4 flex flex-col flex-1">
+          {/* Always exactly 2 lines */}
+          <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 min-h-[3rem]">
             {product.name}
           </h3>
 
           <div className="flex items-center justify-between mb-3">
             <span className="text-lg font-bold text-blue-600">
-              <span>${parseFloat(product.price || 0).toFixed(2)}</span>
+              ${parseFloat(product.price || 0).toFixed(2)}
             </span>
-
             {product.is_in_stock ? (
               <span className="text-xs text-green-600 font-medium">
                 In Stock
@@ -74,7 +75,7 @@ const ProductCard = ({ product }) => {
           <Button
             onClick={handleAddToCart}
             disabled={!product.is_in_stock || isAdding}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-auto"
             size="sm"
           >
             {isAdding ? (

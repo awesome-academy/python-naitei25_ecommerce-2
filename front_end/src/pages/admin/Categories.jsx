@@ -167,8 +167,8 @@ export function Categories() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-700 border-t-transparent" />
-        <span className="ml-4 text-lg text-gray-400">Loading...</span>
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-transparent" />
+        <span className="ml-4 text-lg text-gray-500">Loading...</span>
       </div>
     );
   }
@@ -184,24 +184,24 @@ export function Categories() {
       </Helmet>
 
       <div className="space-y-6">
-        {/* Header (matches Orders.jsx tone) */}
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white">Categories</h1>
-            <p className="text-gray-300">Organize your product catalog</p>
+            <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
+            <p className="text-gray-600">Organize your product catalog</p>
           </div>
 
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button
-                className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
+                className="bg-blue-600 text-white hover:bg-blue-700"
                 onClick={handleAddOpen}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Category
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-gray-900 border border-gray-700 text-white">
+            <DialogContent className="bg-white border border-gray-200 text-gray-900 shadow-xl">
               <DialogHeader>
                 <DialogTitle>Add New Category</DialogTitle>
               </DialogHeader>
@@ -220,7 +220,7 @@ export function Categories() {
                     onChange={(e) =>
                       setFormData({ ...formData, name: e.target.value })
                     }
-                    className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                    className="bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                     placeholder="Enter category name"
                     disabled={isSaving}
                     required
@@ -232,14 +232,14 @@ export function Categories() {
                     type="button"
                     variant="outline"
                     onClick={() => setIsAddDialogOpen(false)}
-                    className="border-gray-700 text-gray-300 hover:bg-gray-700"
+                    className="border-gray-300 text-gray-800 hover:bg-gray-100"
                     disabled={isSaving}
                   >
                     Cancel
                   </Button>
                   <Button
                     type="submit"
-                    className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
+                    className="bg-blue-600 text-white hover:bg-blue-700"
                     disabled={isSaving}
                   >
                     {isSaving ? (
@@ -257,25 +257,25 @@ export function Categories() {
           </Dialog>
         </div>
 
-        {/* Categories Grid (dark cards like Orders) */}
+        {/* Categories Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {categories.map((category) => (
             <motion.div
               key={category.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gray-900 border border-gray-700 rounded-md p-6 hover:bg-gray-800/60 transition-colors"
+              className="bg-white border border-gray-200 rounded-md p-6 shadow-sm hover:shadow-md transition-shadow"
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center">
-                    <Tag className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center">
+                    <Tag className="w-6 h-6 text-gray-700" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white">
+                    <h3 className="font-semibold text-gray-900">
                       {category.name}
                     </h3>
-                    <p className="text-sm text-gray-400">ID: #{category.id}</p>
+                    <p className="text-sm text-gray-600">ID: #{category.id}</p>
                   </div>
                 </div>
 
@@ -297,14 +297,14 @@ export function Categories() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-gray-700 text-gray-300 hover:bg-gray-700"
+                        className="border-gray-300 text-gray-800 hover:bg-gray-100"
                         onClick={() => handleEditOpen(category)}
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
                     </DialogTrigger>
 
-                    <DialogContent className="bg-gray-900 border border-gray-700 text-white">
+                    <DialogContent className="bg-white border border-gray-200 text-gray-900 shadow-xl">
                       <DialogHeader>
                         <DialogTitle>Edit Category</DialogTitle>
                       </DialogHeader>
@@ -325,7 +325,7 @@ export function Categories() {
                             onChange={(e) =>
                               setFormData({ ...formData, name: e.target.value })
                             }
-                            className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                            className="bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                             placeholder="Enter category name"
                             disabled={isSaving}
                             required
@@ -341,14 +341,14 @@ export function Categories() {
                               setEditingCategory(null);
                               resetForm();
                             }}
-                            className="border-gray-700 text-gray-300 hover:bg-gray-700"
+                            className="border-gray-300 text-gray-800 hover:bg-gray-100"
                             disabled={isSaving}
                           >
                             Cancel
                           </Button>
                           <Button
                             type="submit"
-                            className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
+                            className="bg-blue-600 text-white hover:bg-blue-700"
                             disabled={isSaving}
                           >
                             {isSaving ? (
@@ -371,7 +371,7 @@ export function Categories() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="border-red-500/40 text-red-400 hover:bg-red-900/20"
+                        className="border-red-300 text-red-700 hover:bg-red-50"
                         disabled={isDeletingId === category.id}
                       >
                         {isDeletingId === category.id ? (
@@ -381,16 +381,16 @@ export function Categories() {
                         )}
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent className="bg-gray-900 border border-gray-700 text-white">
+                    <AlertDialogContent className="bg-white border border-gray-200 text-gray-900 shadow-xl">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Category</AlertDialogTitle>
-                        <AlertDialogDescription className="text-gray-400">
+                        <AlertDialogDescription className="text-gray-600">
                           Are you sure you want to delete "{category.name}"?
                           This action cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel className="border border-gray-700 text-gray-300 hover:bg-gray-800">
+                        <AlertDialogCancel className="border border-gray-300 text-gray-800 hover:bg-gray-100">
                           Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction
@@ -410,31 +410,31 @@ export function Categories() {
 
         {/* Empty state */}
         {categories.length === 0 && (
-          <div className="bg-gray-900 border border-gray-700 rounded-md p-12 text-center">
+          <div className="bg-white border border-gray-200 rounded-md p-12 text-center shadow-sm">
             <FolderOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-white mb-2">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
               No categories found
             </h3>
-            <p className="text-gray-400">
+            <p className="text-gray-600">
               Create your first category to organize products
             </p>
           </div>
         )}
 
-        {/* Pagination buttons styled like Orders theme */}
+        {/* Pagination */}
         {(prevPage || nextPage) && (
           <div className="flex justify-between mt-4">
             <Button
               onClick={() => loadCategories(page - 1)}
               disabled={!prevPage}
-              className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700 disabled:opacity-50"
+              className="bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
             >
               Previous
             </Button>
             <Button
               onClick={() => loadCategories(page + 1)}
               disabled={!nextPage}
-              className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700 disabled:opacity-50"
+              className="bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
             >
               Next
             </Button>

@@ -45,7 +45,6 @@ const AdminRoutesContent = () => {
 
   return (
     <>
-      <Toaster />
       <Routes>
         <Route path="/admin/login" element={<AdminLoginRedirect />} />
         {isAuthenticated && isAdmin ? (

@@ -64,11 +64,10 @@ export function Products() {
     description: "",
     price: "",
     image_url: "",
-    category_id: "", // PK
+    category_id: "",
     is_in_stock: true,
   });
 
-  // specs as editable rows, then converted to object on submit
   const [specRows, setSpecRows] = useState([{ key: "", value: "" }]);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -331,8 +330,8 @@ export function Products() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-700 border-t-transparent" />
-        <span className="ml-4 text-lg text-gray-400">Loading...</span>
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-transparent" />
+        <span className="ml-4 text-lg text-gray-500">Loading...</span>
       </div>
     );
   }
@@ -347,11 +346,11 @@ export function Products() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-white">Products</h1>
-            <p className="text-gray-300">Manage your product catalog</p>
+            <h1 className="text-3xl font-bold text-gray-900">Products</h1>
+            <p className="text-gray-600">Manage your product catalog</p>
           </div>
           <Button
-            className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
+            className="bg-blue-600 text-white hover:bg-blue-700"
             onClick={() => {
               resetForm();
               setIsAddDialogOpen(true);
@@ -362,7 +361,7 @@ export function Products() {
         </div>
 
         {/* Search */}
-        <div className="bg-gray-900 border border-gray-700 rounded-md p-4">
+        <div className="bg-white border border-gray-200 rounded-md p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="relative w-full max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -371,12 +370,12 @@ export function Products() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                className="pl-9 bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                className="pl-9 bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
               />
             </div>
             <Button
               onClick={handleSearch}
-              className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
+              className="bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200"
             >
               <Search className="w-4 h-4 mr-1" /> Search
             </Button>
@@ -390,9 +389,9 @@ export function Products() {
               key={product.id}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gray-900 border border-gray-700 rounded-md p-4"
+              className="bg-white border border-gray-200 rounded-md p-4 shadow-sm"
             >
-              <div className="aspect-square mb-4 overflow-hidden rounded-md border border-gray-700 bg-gray-800">
+              <div className="aspect-square mb-4 overflow-hidden rounded-md border border-gray-200 bg-gray-100">
                 {product.image_urls?.[0] ? (
                   <img
                     src={product.image_urls[0]}
@@ -407,22 +406,22 @@ export function Products() {
               </div>
 
               <div className="space-y-2">
-                <h3 className="font-semibold text-white text-lg line-clamp-2">
+                <h3 className="font-semibold text-gray-900 text-lg line-clamp-2">
                   {product.name}
                 </h3>
-                <p className="text-sm text-gray-400 line-clamp-2">
+                <p className="text-sm text-gray-600 line-clamp-2">
                   {product.description}
                 </p>
 
                 <div className="flex items-center justify-between pt-1">
-                  <p className="text-green-400 font-semibold">
+                  <p className="text-green-700 font-semibold">
                     ${Number(product.price ?? 0).toFixed(2)}
                   </p>
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border ${
                       product.is_in_stock
-                        ? "bg-green-900/30 text-green-300 border-green-800"
-                        : "bg-red-900/30 text-red-300 border-red-800"
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : "bg-red-50 text-red-700 border-red-200"
                     }`}
                   >
                     <BadgeCheck className="w-3 h-3" />
@@ -434,13 +433,12 @@ export function Products() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="border-gray-700 text-gray-300 hover:bg-gray-700"
+                    className="border-gray-300 text-gray-800 hover:bg-gray-100"
                     onClick={() => handleEdit(product)}
                   >
                     <Edit className="w-4 h-4" />
                   </Button>
 
-                  {/* Out of stock action (disabled when already out of stock) */}
                   <Button
                     size="sm"
                     variant="outline"
@@ -454,17 +452,26 @@ export function Products() {
                       !product.is_in_stock ||
                       stockLoadingIds.includes(product.id)
                     }
-                    className={`${
+                    className={`border-yellow-300 text-yellow-700 ${
                       !product.is_in_stock
                         ? "opacity-50 cursor-not-allowed"
-                        : "hover:bg-yellow-900/20"
-                    } border-yellow-500/40 text-yellow-300`}
+                        : "hover:bg-yellow-50"
+                    }`}
                   >
                     {stockLoadingIds.includes(product.id) ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <CircleSlash className="w-4 h-4" />
                     )}
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDelete(product.id)}
+                    className="border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -474,9 +481,9 @@ export function Products() {
 
         {/* Empty state */}
         {products.length === 0 && (
-          <div className="bg-gray-900 border border-gray-700 rounded-md p-12 text-center">
+          <div className="bg-white border border-gray-200 rounded-md p-12 text-center shadow-sm">
             <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-white font-semibold">No products found</p>
+            <p className="text-gray-900 font-semibold">No products found</p>
           </div>
         )}
 
@@ -486,14 +493,14 @@ export function Products() {
             <Button
               onClick={() => loadProducts(page - 1)}
               disabled={!prevPage}
-              className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700 disabled:opacity-50"
+              className="bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
             >
               Previous
             </Button>
             <Button
               onClick={() => loadProducts(page + 1)}
               disabled={!nextPage}
-              className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700 disabled:opacity-50"
+              className="bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
             >
               Next
             </Button>
@@ -503,7 +510,7 @@ export function Products() {
 
       {/* ADD PRODUCT DIALOG */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="bg-gray-900 border border-gray-700 text-white sm:max-w-lg">
+        <DialogContent className="bg-white border border-gray-200 text-gray-900 sm:max-w-lg shadow-xl">
           <DialogHeader>
             <DialogTitle>Add Product</DialogTitle>
           </DialogHeader>
@@ -517,7 +524,7 @@ export function Products() {
               <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
-                className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                className="bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
@@ -531,7 +538,7 @@ export function Products() {
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
-                className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                className="bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                 value={formData.description}
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
@@ -547,7 +554,7 @@ export function Products() {
                 type="number"
                 step="0.01"
                 min="0"
-                className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                className="bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                 value={formData.price}
                 onChange={(e) =>
                   setFormData({ ...formData, price: e.target.value })
@@ -557,7 +564,6 @@ export function Products() {
               />
             </div>
 
-            {/* Category Select */}
             <div>
               <Label>Category</Label>
               <Select
@@ -567,14 +573,14 @@ export function Products() {
                 }
                 disabled={loadingCats || isSaving}
               >
-                <SelectTrigger className="bg-gray-800 border border-gray-700 text-white">
+                <SelectTrigger className="bg-white border border-gray-300 text-gray-900">
                   <SelectValue
                     placeholder={
                       loadingCats ? "Loading..." : "Select a category"
                     }
                   />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-900 border border-gray-700 text-white">
+                <SelectContent className="bg-white border border-gray-200 text-gray-900">
                   {categories.map((c) => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       {c.name}
@@ -588,7 +594,7 @@ export function Products() {
               <Label htmlFor="image_url">Image URL</Label>
               <Input
                 id="image_url"
-                className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                className="bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                 value={formData.image_url}
                 onChange={(e) =>
                   setFormData({ ...formData, image_url: e.target.value })
@@ -604,14 +610,14 @@ export function Products() {
               {specRows.map((row, idx) => (
                 <div className="grid grid-cols-12 gap-2" key={idx}>
                   <Input
-                    className="col-span-5 bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                    className="col-span-5 bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                     placeholder="key (e.g., color)"
                     value={row.key}
                     onChange={(e) => updateSpecRow(idx, "key", e.target.value)}
                     disabled={isSaving}
                   />
                   <Input
-                    className="col-span-6 bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                    className="col-span-6 bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                     placeholder="value (e.g., red)"
                     value={row.value}
                     onChange={(e) =>
@@ -623,7 +629,7 @@ export function Products() {
                     type="button"
                     variant="outline"
                     size="icon"
-                    className="col-span-1 border-gray-700 text-gray-300 hover:bg-gray-700"
+                    className="col-span-1 border-gray-300 text-gray-800 hover:bg-gray-100"
                     onClick={() => removeSpecRow(idx)}
                     title="Remove"
                     disabled={isSaving}
@@ -635,7 +641,7 @@ export function Products() {
               <Button
                 type="button"
                 variant="secondary"
-                className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
+                className="bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200"
                 onClick={addSpecRow}
                 disabled={isSaving}
               >
@@ -660,14 +666,14 @@ export function Products() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsAddDialogOpen(false)}
-                className="border-gray-700 text-gray-300 hover:bg-gray-700"
+                className="border-gray-300 text-gray-800 hover:bg-gray-100"
                 disabled={isSaving}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
+                className="bg-blue-600 text-white hover:bg-blue-700"
                 disabled={loadingCats || !formData.category_id || isSaving}
               >
                 {isSaving ? (
@@ -686,7 +692,7 @@ export function Products() {
 
       {/* EDIT PRODUCT DIALOG */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="bg-gray-900 border border-gray-700 text-white sm:max-w-lg">
+        <DialogContent className="bg-white border border-gray-200 text-gray-900 sm:max-w-lg shadow-xl">
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
           </DialogHeader>
@@ -700,7 +706,7 @@ export function Products() {
               <Label htmlFor="name_edit">Name</Label>
               <Input
                 id="name_edit"
-                className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                className="bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
@@ -714,7 +720,7 @@ export function Products() {
               <Label htmlFor="description_edit">Description</Label>
               <Textarea
                 id="description_edit"
-                className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                className="bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                 value={formData.description}
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
@@ -730,7 +736,7 @@ export function Products() {
                 type="number"
                 step="0.01"
                 min="0"
-                className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                className="bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                 value={formData.price}
                 onChange={(e) =>
                   setFormData({ ...formData, price: e.target.value })
@@ -740,7 +746,6 @@ export function Products() {
               />
             </div>
 
-            {/* Category Select */}
             <div>
               <Label>Category</Label>
               <Select
@@ -750,14 +755,14 @@ export function Products() {
                 }
                 disabled={loadingCats || isSaving}
               >
-                <SelectTrigger className="bg-gray-800 border border-gray-700 text-white">
+                <SelectTrigger className="bg-white border border-gray-300 text-gray-900">
                   <SelectValue
                     placeholder={
                       loadingCats ? "Loading..." : "Select a category"
                     }
                   />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-900 border border-gray-700 text-white">
+                <SelectContent className="bg-white border border-gray-200 text-gray-900">
                   {categories.map((c) => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       {c.name}
@@ -771,7 +776,7 @@ export function Products() {
               <Label htmlFor="image_url_edit">Image URL</Label>
               <Input
                 id="image_url_edit"
-                className="bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                className="bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                 value={formData.image_url}
                 onChange={(e) =>
                   setFormData({ ...formData, image_url: e.target.value })
@@ -781,20 +786,19 @@ export function Products() {
               />
             </div>
 
-            {/* Specifications (Edit) */}
             <div className="space-y-2">
               <Label>Specifications</Label>
               {specRows.map((row, idx) => (
                 <div className="grid grid-cols-12 gap-2" key={idx}>
                   <Input
-                    className="col-span-5 bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                    className="col-span-5 bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                     placeholder="key (e.g., color)"
                     value={row.key}
                     onChange={(e) => updateSpecRow(idx, "key", e.target.value)}
                     disabled={isSaving}
                   />
                   <Input
-                    className="col-span-6 bg-gray-800 border border-gray-700 text-white placeholder:text-gray-400"
+                    className="col-span-6 bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
                     placeholder="value (e.g., red)"
                     value={row.value}
                     onChange={(e) =>
@@ -806,7 +810,7 @@ export function Products() {
                     type="button"
                     variant="outline"
                     size="icon"
-                    className="col-span-1 border-gray-700 text-gray-300 hover:bg-gray-700"
+                    className="col-span-1 border-gray-300 text-gray-800 hover:bg-gray-100"
                     onClick={() => removeSpecRow(idx)}
                     title="Remove"
                     disabled={isSaving}
@@ -815,15 +819,6 @@ export function Products() {
                   </Button>
                 </div>
               ))}
-              <Button
-                type="button"
-                variant="secondary"
-                className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
-                onClick={addSpecRow}
-                disabled={isSaving}
-              >
-                <Plus className="w-4 h-4 mr-1" /> Add spec
-              </Button>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -843,14 +838,14 @@ export function Products() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsEditDialogOpen(false)}
-                className="border-gray-700 text-gray-300 hover:bg-gray-700"
+                className="border-gray-300 text-gray-800 hover:bg-gray-100"
                 disabled={isSaving}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="bg-gray-800 border border-gray-700 text-white hover:bg-gray-700"
+                className="bg-blue-600 text-white hover:bg-blue-700"
                 disabled={loadingCats || !formData.category_id || isSaving}
               >
                 {isSaving ? (
