@@ -92,3 +92,15 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+class ProductInstantSerializer(serializers.ModelSerializer):
+    first_image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = ("id", "name", "price", "first_image", "is_in_stock")
+
+    def get_first_image(self, obj):
+        if obj.image_urls and len(obj.image_urls) > 0:
+            return obj.image_urls[0]
+        return None

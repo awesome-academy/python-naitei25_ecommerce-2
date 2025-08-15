@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import ProductCard from "@/components/products/ProductCard";
 import CategorySidebar from "@/components/categories/CategorySidebar";
 
-const DEBOUNCE_MS = 400;
+const DEBOUNCE_MS = 700;
 
 const Categories = () => {
   const { categoryId } = useParams();
