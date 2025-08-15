@@ -16,6 +16,8 @@ from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
+from celery.schedules import crontab
+
 
 load_dotenv()
 
@@ -164,7 +166,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / "templates"],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -260,3 +262,56 @@ ACCOUNT_SIGNUP_FIELDS = {
 SOCIALACCOUNT_LOGIN_ON_GET = True
 ACCOUNT_LOGOUT_ON_GET = True
 SOCIALACCOUNT_ADAPTER = 'allauth.socialaccount.adapter.DefaultSocialAccountAdapter'
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.getenv('EMAIL_HOST')
+EMAIL_PORT = os.getenv('EMAIL_PORT', 587)
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_DEFAULT')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = os.getenv('EMAIL_DEFAULT')
+
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND')
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Ho_Chi_Minh'
+CELERY_ENABLE_UTC = False
+
+REPORT_DAY = int(os.getenv('REVENUE_REPORT_DAY', 1))
+REPORT_HOUR = int(os.getenv('REVENUE_REPORT_HOUR', 0))
+REPORT_MINUTE = int(os.getenv('REVENUE_REPORT_MINUTE', 0))
+
+CURRENCY_CODE = 'USD'
+
+CELERY_BEAT_SCHEDULE = {
+    'send-revenue-report-monthly': {
+        'task': 'orders.tasks.send_monthly_revenue_report',
+        'schedule': crontab(day_of_month=REPORT_DAY,
+                            hour=REPORT_HOUR,
+                            minute=REPORT_MINUTE
+                            ),
+    },
+}
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'orders': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}
+
