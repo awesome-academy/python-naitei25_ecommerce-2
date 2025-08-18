@@ -8,6 +8,9 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from django.utils.translation import gettext_lazy as _
 from rest_framework import filters
+from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
+
+
 
 from products.models import Category, Product
 from orders.models import OrderItem
@@ -17,6 +20,7 @@ from products.serializers import (
     CategorySerializer,
     ProductDetailSerializer,
     ProductListSerializer,
+    ProductInstantSerializer
 )
 
 class CategoryListAPIView(generics.ListAPIView):
@@ -124,3 +128,37 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
     queryset = Product.objects.select_related('category').all()
     serializer_class = ProductDetailSerializer
     lookup_field = 'pk'
+
+
+class InstantProductSearchAPIView(generics.ListAPIView):
+    serializer_class = ProductInstantSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        q = (self.request.query_params.get("q") or "").strip()
+        if not q:
+            return Product.objects.none()
+
+        vector = (
+            SearchVector("name", weight="A", config="simple") +
+            SearchVector("description", weight="B", config="simple")
+        )
+        query = SearchQuery(q, config="simple")
+
+        return (
+            Product.objects.filter(is_in_stock=True)
+            .annotate(rank=SearchRank(vector, query))
+            .filter(rank__gt=0)
+            .order_by("-rank", "-id")  
+        )
+
+    def list(self, request, *args, **kwargs):
+       
+        try:
+            limit = min(int(request.query_params.get("limit", 10)), 20)
+        except (TypeError, ValueError):
+            limit = 10
+
+        queryset = self.get_queryset()[:limit]
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({"results": serializer.data})
