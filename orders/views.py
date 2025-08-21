@@ -1,4 +1,5 @@
 # orders/views.py
+
 from decimal import Decimal
 from django.db import transaction
 from rest_framework import generics, status
@@ -10,15 +11,15 @@ from django.utils.translation import gettext as _
 
 from cart.models import Cart
 from cart.views import calculate_cart_total
-from .models import Order, OrderItem
-from .serializers import OrderSerializer
+from .models import Order, OrderItem, Coupon
+from .serializers import OrderSerializer, CouponApplySerializer, CouponSerializer
 from core.constants import OrderStatus, CancelReason
 
 
 class OrderListCreateAPIView(generics.ListCreateAPIView):
-    serializer_class       = OrderSerializer
+    serializer_class = OrderSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes     = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return Order.objects.filter(user=self.request.user).order_by("-ordered_at")
@@ -30,7 +31,40 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
         with transaction.atomic():
             cart, _ = Cart.objects.select_for_update().get_or_create(user=request.user)
             total = calculate_cart_total(cart.items)
-            order = serializer.save(user=request.user, total_amount=total)
+            
+            # Apply coupon if provided
+            coupon_code = request.data.get('coupon_code')
+            discount_amount = 0
+            coupon = None
+            
+            if coupon_code:
+                coupon_serializer = CouponApplySerializer(data={
+                    'code': coupon_code,
+                    'total_amount': total
+                })
+                
+                if coupon_serializer.is_valid():
+                    coupon = coupon_serializer.validated_data['code']
+                    final_amount, discount_amount = coupon.apply_discount(total)
+                    
+                    # Update coupon usage
+                    coupon.times_used += 1
+                    coupon.save()
+                else:
+                    return Response(
+                        {'coupon_code': coupon_serializer.errors},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            else:
+                final_amount = total
+
+            order = serializer.save(
+                user=request.user,
+                total_amount=total,
+                discount_amount=discount_amount,
+                final_amount=final_amount,
+                coupon=coupon
+            )
 
             order_items = [
                 OrderItem(
@@ -50,6 +84,50 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
         read_serializer = self.get_serializer(order)
         headers = self.get_success_headers(read_serializer.data)
         return Response(read_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class CouponValidateAPIView(generics.GenericAPIView):
+    """Validate coupon and calculate discount"""
+    serializer_class = CouponApplySerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        
+        if serializer.is_valid():
+            coupon = serializer.validated_data['code']
+            total_amount = serializer.validated_data.get('total_amount', 0)
+            
+            final_amount, discount_amount = coupon.apply_discount(total_amount)
+            
+            return Response({
+                'valid': True,
+                'coupon': CouponSerializer(coupon).data,
+                'discount_amount': discount_amount,
+                'final_amount': final_amount
+            })
+        
+        return Response({
+            'valid': False,
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminCouponListAPIView(generics.ListCreateAPIView):
+    """Admin view to list and create coupons"""
+    serializer_class = CouponSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    queryset = Coupon.objects.all().order_by('-created_at')
+
+
+class AdminCouponDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    """Admin view to manage individual coupons"""
+    serializer_class = CouponSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    queryset = Coupon.objects.all()
 
 
 class OrderRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
