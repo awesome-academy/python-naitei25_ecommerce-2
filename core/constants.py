@@ -12,6 +12,7 @@ class FieldLengths:
     URL = 255
     PASSWORD = 255
     ADDRESS = 1000
+    GENDER = 10
 
 
 class DecimalSettings:
@@ -70,4 +71,18 @@ class CancelReason(str, Enum):
         return [
             (reason.value, _(reason.name.replace('_', ' ').title()))
             for reason in cls
+        ]
+
+
+class Gender(str, Enum):
+    """Gender enumeration"""
+    MALE = "male"
+    FEMALE = "female"
+    OTHER = "other"
+
+    @classmethod
+    def choices(cls):
+        return [
+            (gender.value, _(gender.name.title()))
+            for gender in cls
         ]
