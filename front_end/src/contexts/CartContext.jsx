@@ -183,22 +183,7 @@ export const CartProvider = ({ children }) => {
     // optimistic UI
     setCartItems([]);
     toast({ title: "Cart cleared" });
-
-    try {
-      const res = await authFetch(API_BASE + "clear/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (handleMaybeUnauthorized(res)) return;
-      if (!res.ok) {
-        console.error("Sync clear failed:", res.status);
-        fetchCart();
-      }
-    } catch (e) {
-      console.error("Sync clear failed:", e);
-      fetchCart();
-    }
-  }, [authFetch, handleMaybeUnauthorized, fetchCart]);
+  }, []);
 
   // Helpers
   const getCartTotal = useCallback(

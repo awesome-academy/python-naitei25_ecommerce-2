@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCart } from "@/contexts/CartContext";
 import { toast } from "@/components/ui/use-toast";
+import CouponBox from "@/components/cart/CouponBox";
 
 const CheckoutForm = () => {
   const [formData, setFormData] = useState({
@@ -16,10 +17,17 @@ const CheckoutForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState("");
-  const token = localStorage.getItem("token");
 
+  // coupon state: { code, discount_amount, final_amount, coupon }
+  const [coupon, setCoupon] = useState(null);
+
+  const token = localStorage.getItem("token");
   const { cartItems, isCartLoading, getCartTotal, clearCart, closeCheckout } =
     useCart();
+
+  const subtotal = getCartTotal();
+  const totalToPay = coupon?.final_amount ?? subtotal;
+  const discount = coupon?.discount_amount ?? 0;
 
   // prefill name from localStorage user
   useEffect(() => {
@@ -41,10 +49,7 @@ const CheckoutForm = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -57,8 +62,9 @@ const CheckoutForm = () => {
         customer_phone: formData.phone,
         customer_address: formData.address,
         payment_method: "COD",
+        coupon_code: coupon?.code || undefined,
       };
-
+      console.log("DEBUG: Order payload sent:", orderData);
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/orders/`,
         {
@@ -75,11 +81,23 @@ const CheckoutForm = () => {
         const result = await response.json();
         newOrderId = result.id;
       } else {
-        const err = await response.json();
-        console.error("Order errors:", err);
+        const err = await response.json().catch(() => ({}));
+        // Surface coupon error if it failed on server during order creation
+        if (err?.coupon_code) {
+          toast({
+            title: "Coupon error",
+            description:
+              err?.coupon_code?.code?.[0] ||
+              "Coupon is invalid/expired during checkout.",
+            variant: "destructive",
+          });
+        } else {
+          console.error("Order errors:", err);
+        }
         throw new Error("Order placement failed");
       }
     } catch {
+      // fallback (demo)
       newOrderId = `ORD-${Date.now()}`;
     }
 
@@ -87,6 +105,7 @@ const CheckoutForm = () => {
     setOrderPlaced(true);
     clearCart();
     setIsSubmitting(false);
+    setCoupon(null);
 
     toast({
       title: "Order placed successfully!",
@@ -150,8 +169,9 @@ const CheckoutForm = () => {
 
   // 3) Default: show order summary + form
   return (
-    <div className="p-4">
-      <div className="mb-6">
+    <div className="p-4 space-y-6">
+      {/* Order Summary */}
+      <div>
         <h3 className="font-semibold text-gray-900 mb-3">Order Summary</h3>
         <div className="space-y-2">
           {cartItems.map((item) => (
@@ -162,13 +182,39 @@ const CheckoutForm = () => {
               <span>${(item.price * item.quantity).toFixed(2)}</span>
             </div>
           ))}
+
+          <div className="border-t border-gray-200 pt-2 flex justify-between text-sm">
+            <span>Subtotal</span>
+            <span>${subtotal.toFixed(2)}</span>
+          </div>
+
+          {coupon && (
+            <>
+              <div className="flex justify-between text-sm text-emerald-700">
+                <span>Discount ({coupon.code})</span>
+                <span>- ${Number(discount).toFixed(2)}</span>
+              </div>
+            </>
+          )}
+
           <div className="border-t border-gray-200 pt-2 flex justify-between font-semibold">
-            <span>Total:</span>
-            <span>${getCartTotal().toFixed(2)}</span>
+            <span>Total</span>
+            <span>${Number(totalToPay).toFixed(2)}</span>
           </div>
         </div>
       </div>
 
+      {/* Coupon input */}
+      <div className="bg-gray-50 p-3 rounded-md">
+        <h4 className="font-medium text-gray-900 mb-2">Have a coupon?</h4>
+        <CouponBox
+          subtotal={subtotal}
+          onApplied={(c) => setCoupon(c)}
+          onCleared={() => setCoupon(null)}
+        />
+      </div>
+
+      {/* Shipping & Payment */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <Label htmlFor="name">Full Name</Label>
