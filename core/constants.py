@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from django.utils.translation import gettext_lazy as _
+from decimal import Decimal
 
 class FieldLengths:
     """Constants for field lengths"""
@@ -18,6 +19,8 @@ class DecimalSettings:
     """Constants for decimal fields"""
     PRICE_MAX_DIGITS = 10
     PRICE_DECIMAL_PLACES = 2
+    DISCOUNT_PERCENT_MAX_DIGITS = 5
+    DISCOUNT_PERCENT_DECIMAL_PLACES = 2
 
 
 class PaginationSettings:
@@ -71,3 +74,14 @@ class CancelReason(str, Enum):
             (reason.value, _(reason.name.replace('_', ' ').title()))
             for reason in cls
         ]
+
+class CouponStatus(str, Enum):
+    """Coupon status enumeration"""
+    VALID = 'VALID'
+    EXPIRED = 'EXPIRED'
+    USAGE_LIMIT_REACHED = 'USAGE_LIMIT_REACHED'
+    INVALID = 'INVALID'
+
+    @classmethod
+    def choices(cls):
+        return [(status.value, _(status.value.replace('_', ' ').title())) for status in cls]
