@@ -144,6 +144,11 @@ REST_AUTH = {
     'JWT_AUTH_SAMESITE': 'Lax',
 }
 
+REST_AUTH_SERIALIZERS = {
+    'SOCIAL_LOGIN_SERIALIZER': 'accounts.serializers.CustomSocialLoginSerializer',
+}
+
+
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -242,6 +247,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'accounts.User'
 
+SOCIALACCOUNT_ADAPTER = "accounts.adapter.CustomSocialAccountAdapter"
+ACCOUNT_ALLOW_REGISTRATION = True
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_UNIQUE_EMAIL = True
 ACCOUNT_EMAIL_VERIFICATION = 'none'
@@ -261,7 +268,6 @@ ACCOUNT_SIGNUP_FIELDS = {
 
 SOCIALACCOUNT_LOGIN_ON_GET = True
 ACCOUNT_LOGOUT_ON_GET = True
-SOCIALACCOUNT_ADAPTER = 'allauth.socialaccount.adapter.DefaultSocialAccountAdapter'
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST')
@@ -314,4 +320,3 @@ LOGGING = {
         },
     },
 }
-

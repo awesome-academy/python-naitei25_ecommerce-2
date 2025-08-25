@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 
-from core.constants import FieldLengths
+from core.constants import FieldLengths, Gender
 from core.models import BaseModel
 
 from .managers import UserManager
@@ -23,6 +23,27 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     phone_number = models.CharField(
         max_length=FieldLengths.PHONE,
         blank=True,
+    )
+
+    gender = models.CharField(
+        max_length=FieldLengths.GENDER,
+        choices= Gender.choices(),
+        blank=True,
+        null=True,
+    )
+    date_of_birth = models.DateField(
+        null=True,
+        blank=True,
+    )
+    address = models.TextField(
+        max_length=FieldLengths.ADDRESS,
+        blank=True,
+        null=True,
+    )
+    avatar = models.CharField(
+        max_length=FieldLengths.URL,
+        blank=True,
+        null=True,
     )
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

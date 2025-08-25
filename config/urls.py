@@ -19,7 +19,6 @@ from __future__ import annotations
 from django.contrib import admin
 from django.urls import include
 from django.urls import path
-
 from config.views import GoogleLogin
 
 urlpatterns = [
@@ -27,7 +26,7 @@ urlpatterns = [
     path('', include('products.urls')),
     path('', include('cart.urls')),
     path('', include('orders.urls')),
-    path('api/auth/', include('accounts.urls')),
+    path('api/auth/', include('accounts.urls', namespace='accounts')),
     path('api/', include('users.urls')),
     path('dj-rest-auth/', include('dj_rest_auth.urls')),
     path(
