@@ -8,6 +8,17 @@ import { toast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import UserNav from "@/components/layout/UserNav";
 
+// react-icons
+import {
+  FaShippingFast,
+  FaCheckCircle,
+  FaTruck,
+  FaGift,
+  FaPhoneAlt,
+  FaUndo,
+} from "react-icons/fa";
+import { FiShield } from "react-icons/fi";
+
 const Header = () => {
   const { getCartItemsCount, toggleCart } = useCart();
   const { user } = useAuth();
@@ -28,13 +39,11 @@ const Header = () => {
     setActive(-1);
   };
 
-  // Close & clear when route/path changes (e.g., after navigate)
   useEffect(() => {
     clearSuggestions();
     setQ("");
   }, [location.pathname]);
 
-  // debounce helper
   const debounce = useMemo(() => {
     let t;
     return (fn, ms = 300) => {
@@ -43,7 +52,6 @@ const Header = () => {
     };
   }, []);
 
-  // fetch suggestions
   useEffect(() => {
     if (!q.trim()) {
       clearSuggestions();
@@ -69,7 +77,6 @@ const Header = () => {
     }, 300);
   }, [q, debounce]);
 
-  // click outside to close
   useEffect(() => {
     function onDown(e) {
       if (!rootRef.current) return;
@@ -82,9 +89,7 @@ const Header = () => {
   const productDetailPath = (id) => `/product/${id}`;
 
   const choose = (p) => {
-    // Navigate first; effect on pathname will clear everything.
     navigate(productDetailPath(p.id));
-    // Extra safety: clear immediately too (prevents any flicker)
     clearSuggestions();
     setQ("");
   };
@@ -111,7 +116,6 @@ const Header = () => {
     }
   };
 
-  // fallback full search on submit
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     const term = q.trim();
@@ -133,8 +137,57 @@ const Header = () => {
     }
   };
 
+  // ✅ Notices dùng react-icons
+  const notices = useMemo(
+    () => [
+      { icon: <FaShippingFast />, text: "Giao hàng nhanh tận nơi" },
+      { icon: <FaCheckCircle />, text: "Sản phẩm chính hãng" },
+      { icon: <FaTruck />, text: "Miễn phí giao hàng trong nước" },
+      { icon: <FiShield />, text: "Thanh toán an toàn, bảo mật" },
+      { icon: <FaPhoneAlt />, text: "Hotline: 123456789" },
+      { icon: <FaGift />, text: "Khuyến mãi hấp dẫn mỗi ngày" },
+      { icon: <FaUndo />, text: "Đổi trả dễ dàng trong 7 ngày" },
+    ],
+    []
+  );
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
+      {/* 🔵 Slim ticker CONTAINED (không tràn màu) */}
+      <div className="w-full bg-transparent text-white text-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* pill container có nền xanh + bo góc */}
+          <div className="relative my-1 rounded-md bg-blue-600 overflow-hidden">
+            {/* viewport fixed height */}
+            <div
+              className="relative overflow-hidden group"
+              style={{ height: 34 }}
+            >
+              {/* animated track (nhân đôi items để loop) */}
+              <div
+                className="absolute left-0 top-0 flex whitespace-nowrap will-change-transform ticker-track group-hover:[animation-play-state:paused]"
+                style={{ animation: "ticker 25s linear infinite" }}
+              >
+                {[...notices, ...notices].map((item, i) => (
+                  <span
+                    key={`${item.text}-${i}`}
+                    className="px-6 py-2 inline-flex items-center gap-2"
+                  >
+                    <span className="text-white/95">{item.icon}</span>
+                    <span className="text-white">{item.text}</span>
+                  </span>
+                ))}
+              </div>
+
+              {/* optional: fade edges để bớt cảm giác 'cắt' */}
+              <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-blue-600 to-transparent" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-blue-600 to-transparent" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Header content gốc */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center">
@@ -152,7 +205,6 @@ const Header = () => {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onFocus={() => {
-                  // Only open if there's a query and we have items
                   if (q.trim() && items.length) setOpen(true);
                 }}
                 onKeyDown={handleKeyDown}
@@ -193,7 +245,6 @@ const Header = () => {
                           role="option"
                           aria-selected={active === idx}
                           onMouseEnter={() => setActive(idx)}
-                          // Select on mousedown to beat blur/outside-click
                           onMouseDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -257,6 +308,15 @@ const Header = () => {
           </div>
         </div>
       </div>
+
+      {/* CSS animation */}
+      <style>{`
+        @keyframes ticker {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); } /* 2 bản sao => -50% là đúng điểm lặp */
+        }
+        .ticker-track { width: 200%; } /* gấp đôi để loop mượt */
+      `}</style>
     </header>
   );
 };

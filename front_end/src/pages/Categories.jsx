@@ -1,5 +1,5 @@
 // src/pages/Categories.jsx
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { motion } from "framer-motion";
@@ -84,30 +84,64 @@ const Categories = () => {
     return url;
   };
 
+  const queryKey = useMemo(
+    () =>
+      JSON.stringify({
+        category: selectedCategory || "",
+        search: debouncedSearchTerm || "",
+      }),
+    [selectedCategory, debouncedSearchTerm]
+  );
+
+  const activeQueryRef = useRef(queryKey);
+  const loadMoreAbortRef = useRef(null);
+  const nextUrlRef = useRef(null);
+
   useEffect(() => {
-    let abort = new AbortController();
+    activeQueryRef.current = queryKey;
+  }, [queryKey]);
+
+  useEffect(() => {
+    const abort = new AbortController();
+
+    if (loadMoreAbortRef.current) {
+      loadMoreAbortRef.current.abort();
+      loadMoreAbortRef.current = null;
+    }
 
     const fetchFirstPage = async () => {
       setIsProductsLoading(true);
       setPage(1);
+
+      setProducts([]);
+      setNextUrl(null);
+      nextUrlRef.current = null;
+
+      const localKey = queryKey;
       try {
         const url = buildProductsUrl(1);
         const res = await fetch(url, { signal: abort.signal });
         if (!res.ok) throw new Error("Failed to fetch products");
         const data = await res.json();
 
-        // DRF paginated or plain list
+        if (activeQueryRef.current !== localKey) return;
+
         const results = Array.isArray(data) ? data : data.results || [];
         setProducts(results);
         setTotalCount(
           Array.isArray(data) ? results.length : data.count ?? results.length
         );
-        setNextUrl(Array.isArray(data) ? null : data.next);
+
+        const nxt = Array.isArray(data) ? null : data.next;
+        setNextUrl(nxt);
+        nextUrlRef.current = nxt;
       } catch (error) {
         if (error.name !== "AbortError") {
+          if (activeQueryRef.current !== localKey) return;
           setProducts([]);
           setTotalCount(0);
           setNextUrl(null);
+          nextUrlRef.current = null;
           toast({
             variant: "destructive",
             title: "Database Error",
@@ -115,34 +149,55 @@ const Categories = () => {
           });
         }
       } finally {
-        setIsProductsLoading(false);
+        if (activeQueryRef.current === localKey) {
+          setIsProductsLoading(false);
+        }
       }
     };
 
     fetchFirstPage();
     return () => abort.abort();
-  }, [selectedCategory, debouncedSearchTerm, toast]);
+  }, [queryKey]);
 
   const loadMore = async () => {
-    if (!nextUrl) return;
+    if (!nextUrlRef.current) return;
     setIsLoadingMore(true);
+
+    if (loadMoreAbortRef.current) {
+      loadMoreAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    loadMoreAbortRef.current = controller;
+
+    const localKey = activeQueryRef.current;
+    const currentNext = nextUrlRef.current;
+
     try {
-      const res = await fetch(nextUrl);
+      const res = await fetch(currentNext, { signal: controller.signal });
       if (!res.ok) throw new Error("Failed to fetch next page");
       const data = await res.json();
+
+      if (activeQueryRef.current !== localKey) return;
+
       const results = data.results || [];
       setProducts((prev) => [...prev, ...results]);
+
       setNextUrl(data.next);
+      nextUrlRef.current = data.next;
       setPage((p) => p + 1);
       setTotalCount(data.count ?? totalCount);
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Pagination Error",
-        description: error.message || "Could not load more products.",
-      });
+      if (error.name !== "AbortError") {
+        toast({
+          variant: "destructive",
+          title: "Pagination Error",
+          description: error.message || "Could not load more products.",
+        });
+      }
     } finally {
-      setIsLoadingMore(false);
+      if (activeQueryRef.current === localKey) {
+        setIsLoadingMore(false);
+      }
     }
   };
 
@@ -238,12 +293,11 @@ const Categories = () => {
                 ))}
               </motion.div>
 
-              {/* Load more */}
               {nextUrl && (
                 <div className="flex justify-center mt-10">
                   <button
                     onClick={loadMore}
-                    disabled={isLoadingMore}
+                    disabled={isLoadingMore || isProductsLoading}
                     className="px-6 py-2 rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60"
                   >
                     {isLoadingMore ? "Loading..." : "Load more"}
