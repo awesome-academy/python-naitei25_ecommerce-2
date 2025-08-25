@@ -85,3 +85,22 @@ class CouponStatus(str, Enum):
     @classmethod
     def choices(cls):
         return [(status.value, _(status.value.replace('_', ' ').title())) for status in cls]
+
+class FlashSaleStatus(str, Enum):
+    """Flash sale status enumeration"""
+    UPCOMING = 'UPCOMING'
+    ACTIVE = 'ACTIVE'
+    EXPIRED = 'EXPIRED'
+    INACTIVE = 'INACTIVE'
+
+    @classmethod
+    def choices(cls):
+        return [(status.value, _(status.value.title())) for status in cls]
+
+
+class FlashSaleSettings:
+    """Constants for flash sale behavior"""
+    MAX_NAME_LENGTH = 255
+    MIN_DISCOUNT_PERCENT = Decimal('0')
+    MAX_DISCOUNT_PERCENT = Decimal('100')
+    MIN_DURATION_HOURS = 1

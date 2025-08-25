@@ -3,7 +3,12 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from .models import Order, OrderItem, Coupon
-from core.constants import OrderStatus, CancelReason, FieldLengths, DecimalSettings
+from core.constants import OrderStatus, CancelReason, FieldLengths, DecimalSettings, FlashSaleSettings, FlashSaleStatus
+from .models import FlashSale
+from products.serializers import ProductInstantSerializer
+from django.utils import timezone
+from decimal import Decimal
+from products.models import Product
 
 
 class CouponSerializer(serializers.ModelSerializer):
@@ -140,3 +145,138 @@ class OrderSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop("coupon_code", None)
         return super().create(validated_data)
+
+
+class FlashSaleSerializer(serializers.ModelSerializer):
+    products = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Product.objects.all(),
+        required=True
+    )
+    status = serializers.SerializerMethodField()
+    remaining_time = serializers.SerializerMethodField()
+    products_info = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FlashSale
+        fields = (
+            'id',
+            'name',
+            'discount_percent',
+            'products',
+            'products_info',
+            'start_date',
+            'end_date',
+            'is_active',
+            'status',
+            'remaining_time',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at', 'status', 'remaining_time', 'products_info')
+
+    def get_status(self, obj):
+        """Get current status of flash sale"""
+        now = timezone.now()
+        if not obj.is_active:
+            return FlashSaleStatus.INACTIVE.value
+        elif now < obj.start_date:
+            return FlashSaleStatus.UPCOMING.value
+        elif now <= obj.end_date:
+            return FlashSaleStatus.ACTIVE.value
+        else:
+            return FlashSaleStatus.EXPIRED.value
+
+    def get_remaining_time(self, obj):
+        """Get remaining time in seconds"""
+        remaining = obj.get_remaining_time()
+        return remaining.total_seconds() if remaining else 0
+
+    def get_products_info(self, obj):
+        """Get detailed product information"""
+        return obj.get_products_info()
+
+    def validate(self, data):
+        """Validate flash sale data"""
+        if data['start_date'] >= data['end_date']:
+            raise serializers.ValidationError(_("End date must be after start date"))
+        
+        if (data['discount_percent'] <= FlashSaleSettings.MIN_DISCOUNT_PERCENT or 
+            data['discount_percent'] > FlashSaleSettings.MAX_DISCOUNT_PERCENT):
+            raise serializers.ValidationError(
+                _("Discount percent must be between {} and {}").format(
+                    FlashSaleSettings.MIN_DISCOUNT_PERCENT,
+                    FlashSaleSettings.MAX_DISCOUNT_PERCENT
+                )
+            )
+        
+        return data
+
+class FlashSaleListSerializer(serializers.ModelSerializer):
+    product_count = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FlashSale
+        fields = (
+            'id',
+            'name',
+            'discount_percent',
+            'start_date',
+            'end_date',
+            'is_active',
+            'status',
+            'product_count',
+        )
+
+    def get_product_count(self, obj):
+        return obj.products.count()
+
+    def get_status(self, obj):
+        """Get current status of flash sale"""
+        now = timezone.now()
+        if not obj.is_active:
+            return FlashSaleStatus.INACTIVE.value
+        elif now < obj.start_date:
+            return FlashSaleStatus.UPCOMING.value
+        elif now <= obj.end_date:
+            return FlashSaleStatus.ACTIVE.value
+        else:
+            return FlashSaleStatus.EXPIRED.value
+
+class ActiveFlashSaleSerializer(serializers.ModelSerializer):
+    products_info = serializers.SerializerMethodField()
+    remaining_time = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FlashSale
+        fields = (
+            'id',
+            'name',
+            'discount_percent',
+            'products_info',
+            'start_date',
+            'end_date',
+            'remaining_time',
+            'status',
+        )
+
+    def get_products_info(self, obj):
+        return obj.get_products_info()
+
+    def get_remaining_time(self, obj):
+        remaining = obj.get_remaining_time()
+        return remaining.total_seconds() if remaining else 0
+
+    def get_status(self, obj):  # THÊM PHƯƠNG THỨC NÀY
+        """Get current status of flash sale"""
+        now = timezone.now()
+        if not obj.is_active:
+            return FlashSaleStatus.INACTIVE.value
+        elif now < obj.start_date:
+            return FlashSaleStatus.UPCOMING.value
+        elif now <= obj.end_date:
+            return FlashSaleStatus.ACTIVE.value
+        else:
+            return FlashSaleStatus.EXPIRED.value
