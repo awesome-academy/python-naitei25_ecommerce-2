@@ -30,12 +30,36 @@ class CategoryListAPIView(generics.ListAPIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AdminProductListCreateView(generics.ListCreateAPIView):
-    queryset = Product.objects.all()
     serializer_class = AdminProductSerializer
     permission_classes = [permissions.IsAdminUser]
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [filters.SearchFilter]  
     search_fields = ['name', 'description']
 
+    def get_queryset(self):
+        qs = Product.objects.select_related('category').all()
+
+        category_id = self.request.query_params.get('category')
+        if category_id and category_id != "all":
+            try:
+                qs = qs.filter(category_id=int(category_id))
+            except (ValueError, TypeError):
+                pass
+
+        is_in_stock = (self.request.query_params.get('is_in_stock') or "").lower()
+        if is_in_stock in {"true", "1", "false", "0"}:
+            qs = qs.filter(is_in_stock=is_in_stock in {"true", "1"})
+
+        allowed_orderings = {
+            'name', '-name', 'price', '-price',
+            'created_at', '-created_at', 'updated_at', '-updated_at',
+        }
+        ordering = self.request.query_params.get('ordering')
+        if ordering in allowed_orderings:
+            qs = qs.order_by(ordering)
+        else:
+            qs = qs.order_by('-created_at')
+
+        return qs
 
 @method_decorator(csrf_exempt, name='dispatch')
 class AdminProductDetailView(generics.RetrieveUpdateDestroyAPIView):

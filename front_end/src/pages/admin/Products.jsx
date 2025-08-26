@@ -20,19 +20,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/admin/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/admin/ui/alert-dialog";
 import { useAdminApi } from "@/contexts/AdminAPI";
 import { toast } from "@/components/admin/ui/use-toast";
+import ConfirmButton from "@/components/admin/ui/ConfirmButton";
 import {
   Plus,
   Edit,
@@ -47,6 +37,7 @@ import {
 export function Products() {
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all"); // <-- NEW
   const [page, setPage] = useState(1);
   const [nextPage, setNextPage] = useState(null);
   const [prevPage, setPrevPage] = useState(null);
@@ -76,17 +67,44 @@ export function Products() {
   const api = useAdminApi();
 
   useEffect(() => {
-    loadProducts(1);
+    loadProducts(1, searchTerm, categoryFilter);
+    // Preload categories for the top filter once
+    preloadCategoriesForFilter();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadProducts = async (pageNum = 1, search = searchTerm) => {
+  const normalizePath = (url) => {
+    // Accept absolute URLs from DRF pagination too
+    try {
+      if (url?.startsWith("http")) {
+        const u = new URL(url);
+        let path = `${u.pathname}${u.search}`;
+        if (path.startsWith("/api/")) path = path.substring(4); // strip leading /api if your api base already has it
+        return path;
+      }
+    } catch {}
+    return url;
+  };
+
+  const buildListUrl = (pageNum, search, category) => {
+    let url = `/admin/products/?page=${pageNum}`;
+    if (search && search.trim() !== "") {
+      url += `&search=${encodeURIComponent(search.trim())}`;
+    }
+    if (category && category !== "all") {
+      url += `&category=${encodeURIComponent(category)}`; // <-- send category to backend
+    }
+    return url;
+  };
+
+  const loadProducts = async (
+    pageNum = 1,
+    search = searchTerm,
+    category = categoryFilter
+  ) => {
     setIsLoading(true);
     try {
-      let url = `/admin/products/?page=${pageNum}`;
-      if (search && search.trim() !== "") {
-        url += `&search=${encodeURIComponent(search.trim())}`;
-      }
+      const url = buildListUrl(pageNum, search, category);
       const result = await api.get(url);
       const list =
         result?.data?.results ??
@@ -103,6 +121,7 @@ export function Products() {
     }
   };
 
+  // Load categories (shared by dialogs + top filter)
   const loadCategories = async () => {
     setLoadingCats(true);
     try {
@@ -120,6 +139,19 @@ export function Products() {
       });
     } finally {
       setLoadingCats(false);
+    }
+  };
+
+  const preloadCategoriesForFilter = async () => {
+    // lightweight preload for the top filter; reuse same endpoint
+    try {
+      const res = await api.get("/admin/categories/");
+      const data = Array.isArray(res?.data?.results)
+        ? res.data.results
+        : res?.data ?? [];
+      setCategories(data);
+    } catch {
+      /* non-blocking */
     }
   };
 
@@ -149,11 +181,23 @@ export function Products() {
     }
   };
 
+  // When any dialog is open (add/edit), ensure categories are up-to-date for the selects
   useEffect(() => {
     if (isAddDialogOpen || isEditDialogOpen) loadCategories();
   }, [isAddDialogOpen, isEditDialogOpen]);
 
-  const handleSearch = () => loadProducts(1, searchTerm);
+  const handleSearch = () => loadProducts(1, searchTerm, categoryFilter);
+
+  const handleCategoryFilterChange = (val) => {
+    setCategoryFilter(val);
+    loadProducts(1, searchTerm, val); // refresh with backend call
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setCategoryFilter("all");
+    loadProducts(1, "", "all");
+  };
 
   const coerceSpecValue = (raw) => {
     const val = String(raw ?? "").trim();
@@ -217,8 +261,7 @@ export function Products() {
     return true;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const saveProduct = async () => {
     if (!validateForm()) return;
 
     const productData = {
@@ -244,8 +287,14 @@ export function Products() {
       }
 
       if (result.success) {
-        toast({ title: "Success", description: "Product saved successfully." });
-        await loadProducts(page);
+        toast({
+          title: "Success",
+          description: editingProduct
+            ? "Product updated successfully."
+            : "Product created successfully.",
+        });
+        // reload respecting current search + category filter + page 1
+        await loadProducts(1, searchTerm, categoryFilter);
         resetForm();
         setIsAddDialogOpen(false);
         setIsEditDialogOpen(false);
@@ -290,11 +339,11 @@ export function Products() {
     setIsEditDialogOpen(true);
   };
 
-  const handleDelete = async (id) => {
+  const deleteProduct = async (id) => {
     const result = await api.delete(`/admin/products/${id}/`);
     if (result.success) {
       toast({ title: "Deleted", description: "Product deleted." });
-      await loadProducts(page);
+      await loadProducts(1, searchTerm, categoryFilter);
     } else {
       toast({
         title: "Error",
@@ -360,10 +409,10 @@ export function Products() {
           </Button>
         </div>
 
-        {/* Search */}
+        {/* Search + Category Filter */}
         <div className="bg-white border border-gray-200 rounded-md p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="relative w-full max-w-md">
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="relative w-full md:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
                 placeholder="Search products..."
@@ -373,12 +422,41 @@ export function Products() {
                 className="pl-9 bg-white border border-gray-300 text-gray-900 placeholder:text-gray-400"
               />
             </div>
-            <Button
-              onClick={handleSearch}
-              className="bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200"
-            >
-              <Search className="w-4 h-4 mr-1" /> Search
-            </Button>
+
+            <div className="w-full md:w-60">
+              <Select
+                value={categoryFilter}
+                onValueChange={handleCategoryFilterChange}
+              >
+                <SelectTrigger className="bg-white border border-gray-300 text-gray-900">
+                  <SelectValue placeholder="Filter by category" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 text-gray-900">
+                  <SelectItem value="all">All categories</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSearch}
+                className="bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200"
+              >
+                <Search className="w-4 h-4 mr-1" /> Search
+              </Button>
+              <Button
+                variant="outline"
+                onClick={clearFilters}
+                className="border-gray-300 text-gray-800 hover:bg-gray-100"
+              >
+                Reset
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -439,40 +517,56 @@ export function Products() {
                     <Edit className="w-4 h-4" />
                   </Button>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    title={
-                      !product.is_in_stock
-                        ? "Already out of stock"
-                        : "Mark as out of stock"
-                    }
-                    onClick={() => handleMarkOutOfStock(product.id)}
+                  {/* Confirm: Mark out of stock */}
+                  <ConfirmButton
+                    title="Mark as out of stock?"
+                    description={`Customers will not be able to purchase "${product.name}".`}
+                    confirmText="Mark out of stock"
+                    onConfirm={() => handleMarkOutOfStock(product.id)}
+                    asChild
                     disabled={
                       !product.is_in_stock ||
                       stockLoadingIds.includes(product.id)
                     }
-                    className={`border-yellow-300 text-yellow-700 ${
-                      !product.is_in_stock
-                        ? "opacity-50 cursor-not-allowed"
-                        : "hover:bg-yellow-50"
-                    }`}
                   >
-                    {stockLoadingIds.includes(product.id) ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <CircleSlash className="w-4 h-4" />
-                    )}
-                  </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      title={
+                        !product.is_in_stock
+                          ? "Already out of stock"
+                          : "Mark as out of stock"
+                      }
+                      className={`border-yellow-300 text-yellow-700 ${
+                        !product.is_in_stock
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-yellow-50"
+                      }`}
+                    >
+                      {stockLoadingIds.includes(product.id) ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CircleSlash className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </ConfirmButton>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDelete(product.id)}
-                    className="border-red-300 text-red-700 hover:bg-red-50"
+                  {/* Confirm: Delete product */}
+                  <ConfirmButton
+                    title="Delete product?"
+                    description={`Are you sure you want to delete "${product.name}"? This cannot be undone.`}
+                    confirmText="Delete"
+                    onConfirm={() => deleteProduct(product.id)}
+                    asChild
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-300 text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </ConfirmButton>
                 </div>
               </div>
             </motion.div>
@@ -491,14 +585,22 @@ export function Products() {
         {(prevPage || nextPage) && (
           <div className="flex justify-between mt-4">
             <Button
-              onClick={() => loadProducts(page - 1)}
+              onClick={() =>
+                prevPage
+                  ? loadProducts(page - 1, searchTerm, categoryFilter)
+                  : null
+              }
               disabled={!prevPage}
               className="bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
             >
               Previous
             </Button>
             <Button
-              onClick={() => loadProducts(page + 1)}
+              onClick={() =>
+                nextPage
+                  ? loadProducts(page + 1, searchTerm, categoryFilter)
+                  : null
+              }
               disabled={!nextPage}
               className="bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
             >
@@ -514,8 +616,9 @@ export function Products() {
           <DialogHeader>
             <DialogTitle>Add Product</DialogTitle>
           </DialogHeader>
+          {/* confirm via ConfirmButton */}
           <form
-            onSubmit={handleSubmit}
+            onSubmit={(e) => e.preventDefault()}
             className={`space-y-4 ${
               isSaving ? "opacity-70 pointer-events-none" : ""
             }`}
@@ -671,8 +774,15 @@ export function Products() {
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
+
+              {/* Confirm: Create product */}
+              <ConfirmButton
+                title="Create product?"
+                description={`This will create "${
+                  formData.name || "(no name)"
+                }".`}
+                confirmText="Create"
+                onConfirm={saveProduct}
                 className="bg-blue-600 text-white hover:bg-blue-700"
                 disabled={loadingCats || !formData.category_id || isSaving}
               >
@@ -684,7 +794,7 @@ export function Products() {
                 ) : (
                   "Save"
                 )}
-              </Button>
+              </ConfirmButton>
             </div>
           </form>
         </DialogContent>
@@ -696,8 +806,9 @@ export function Products() {
           <DialogHeader>
             <DialogTitle>Edit Product</DialogTitle>
           </DialogHeader>
+          {/* confirm via ConfirmButton */}
           <form
-            onSubmit={handleSubmit}
+            onSubmit={(e) => e.preventDefault()}
             className={`space-y-4 ${
               isSaving ? "opacity-70 pointer-events-none" : ""
             }`}
@@ -843,8 +954,13 @@ export function Products() {
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
+
+              {/* Confirm: Save changes */}
+              <ConfirmButton
+                title="Save product changes?"
+                description={`Apply updates to "${editingProduct?.name}"?`}
+                confirmText="Save"
+                onConfirm={saveProduct}
                 className="bg-blue-600 text-white hover:bg-blue-700"
                 disabled={loadingCats || !formData.category_id || isSaving}
               >
@@ -856,7 +972,7 @@ export function Products() {
                 ) : (
                   "Save changes"
                 )}
-              </Button>
+              </ConfirmButton>
             </div>
           </form>
         </DialogContent>

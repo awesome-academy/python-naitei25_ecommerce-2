@@ -12,19 +12,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/admin/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/admin/ui/alert-dialog";
 import { useAdminApi } from "@/contexts/AdminAPI";
 import { toast } from "@/components/admin/ui/use-toast";
+import ConfirmButton from "@/components/admin/ui/ConfirmButton";
 import { Plus, Trash2, Tag, Edit, Loader2, FolderOpen } from "lucide-react";
 
 export function Categories() {
@@ -34,7 +24,6 @@ export function Categories() {
   const [page, setPage] = useState(1);
   const [nextPage, setNextPage] = useState(null);
   const [prevPage, setPrevPage] = useState(null);
-
   const [isLoading, setIsLoading] = useState(true);
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -66,8 +55,7 @@ export function Categories() {
       setNextPage(res?.data?.next ?? null);
       setPrevPage(res?.data?.previous ?? null);
       setPage(pageNum);
-    } catch (e) {
-      console.error("Failed to load categories", e);
+    } catch {
       setCategories([]);
     } finally {
       setIsLoading(false);
@@ -101,10 +89,8 @@ export function Categories() {
     return !!formData.name.trim();
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const submitCategory = async () => {
     if (!validate()) return;
-
     setIsSaving(true);
     try {
       let result;
@@ -177,10 +163,6 @@ export function Categories() {
     <>
       <Helmet>
         <title>Categories - Admin Dashboard</title>
-        <meta
-          name="description"
-          content="Manage product categories, organize your inventory, and create new categories."
-        />
       </Helmet>
 
       <div className="space-y-6">
@@ -207,7 +189,7 @@ export function Categories() {
               </DialogHeader>
 
               <form
-                onSubmit={handleSubmit}
+                onSubmit={(e) => e.preventDefault()}
                 className={`space-y-4 ${
                   isSaving ? "opacity-70 pointer-events-none" : ""
                 }`}
@@ -237,8 +219,15 @@ export function Categories() {
                   >
                     Cancel
                   </Button>
-                  <Button
-                    type="submit"
+
+                  {/* Confirm before CREATE */}
+                  <ConfirmButton
+                    title="Create category?"
+                    description={`This will create a new category named "${
+                      formData.name || "(empty)"
+                    }".`}
+                    confirmText="Create"
+                    onConfirm={submitCategory}
                     className="bg-blue-600 text-white hover:bg-blue-700"
                     disabled={isSaving}
                   >
@@ -250,7 +239,7 @@ export function Categories() {
                     ) : (
                       "Add Category"
                     )}
-                  </Button>
+                  </ConfirmButton>
                 </div>
               </form>
             </DialogContent>
@@ -310,7 +299,7 @@ export function Categories() {
                       </DialogHeader>
 
                       <form
-                        onSubmit={handleSubmit}
+                        onSubmit={(e) => e.preventDefault()}
                         className={`space-y-4 ${
                           isSaving ? "opacity-70 pointer-events-none" : ""
                         }`}
@@ -346,8 +335,15 @@ export function Categories() {
                           >
                             Cancel
                           </Button>
-                          <Button
-                            type="submit"
+
+                          {/* Confirm before SAVE */}
+                          <ConfirmButton
+                            title="Save changes?"
+                            description={`This will update "${
+                              editingCategory?.name
+                            }" to "${formData.name || "(empty)"}".`}
+                            confirmText="Save"
+                            onConfirm={submitCategory}
                             className="bg-blue-600 text-white hover:bg-blue-700"
                             disabled={isSaving}
                           >
@@ -359,49 +355,29 @@ export function Categories() {
                             ) : (
                               "Save changes"
                             )}
-                          </Button>
+                          </ConfirmButton>
                         </div>
                       </form>
                     </DialogContent>
                   </Dialog>
 
-                  {/* Delete */}
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-red-300 text-red-700 hover:bg-red-50"
-                        disabled={isDeletingId === category.id}
-                      >
-                        {isDeletingId === category.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="bg-white border border-gray-200 text-gray-900 shadow-xl">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Category</AlertDialogTitle>
-                        <AlertDialogDescription className="text-gray-600">
-                          Are you sure you want to delete "{category.name}"?
-                          This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel className="border border-gray-300 text-gray-800 hover:bg-gray-100">
-                          Cancel
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDelete(category.id)}
-                          className="bg-red-600 hover:bg-red-700 text-white"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  {/* Delete with confirmation */}
+                  <ConfirmButton
+                    title="Delete category?"
+                    description={`Are you sure you want to delete "${category.name}"? This cannot be undone.`}
+                    confirmText="Delete"
+                    onConfirm={() => handleDelete(category.id)}
+                    className="border-red-300 text-red-700 hover:bg-red-50"
+                    variant="outline"
+                    size="sm"
+                    disabled={isDeletingId === category.id}
+                  >
+                    {isDeletingId === category.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </ConfirmButton>
                 </div>
               </div>
             </motion.div>

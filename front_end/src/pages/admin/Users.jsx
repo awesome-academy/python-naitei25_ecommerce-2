@@ -1,3 +1,4 @@
+// src/pages/admin/Users.jsx
 import React, { useState, useEffect } from "react";
 import { Helmet } from "react-helmet";
 import { motion } from "framer-motion";
@@ -15,6 +16,7 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
+import ConfirmButton from "@/components/admin/ui/ConfirmButton";
 
 export function Users() {
   const api = useAdminApi();
@@ -155,27 +157,42 @@ export function Users() {
 
                   <div className="mt-4">
                     {user.is_active ? (
-                      <Button
-                        variant="destructive"
-                        onClick={() => deactivateUser(user.id)}
+                      <ConfirmButton
+                        title="Deactivate user?"
+                        description={`Are you sure you want to deactivate "${user.email}"? They won't be able to sign in.`}
+                        confirmText="Deactivate"
+                        onConfirm={() => deactivateUser(user.id)}
                         disabled={isUserLoading}
+                        variant="destructive"
+                        className="bg-red-600 hover:bg-red-700 text-white"
                       >
                         {isUserLoading ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : null}
-                        {isUserLoading ? "Deactivating..." : "Deactivate"}
-                      </Button>
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Deactivating...
+                          </>
+                        ) : (
+                          "Deactivate"
+                        )}
+                      </ConfirmButton>
                     ) : (
-                      <Button
-                        onClick={() => reactivateUser(user.id)}
+                      <ConfirmButton
+                        title="Reactivate user?"
+                        description={`Allow "${user.email}" to sign in again.`}
+                        confirmText="Reactivate"
+                        onConfirm={() => reactivateUser(user.id)}
                         disabled={isUserLoading}
                         className="bg-blue-600 text-white hover:bg-blue-700"
                       >
                         {isUserLoading ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : null}
-                        {isUserLoading ? "Reactivating..." : "Reactivate"}
-                      </Button>
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Reactivating...
+                          </>
+                        ) : (
+                          "Reactivate"
+                        )}
+                      </ConfirmButton>
                     )}
                   </div>
                 </motion.div>

@@ -28,13 +28,14 @@ import {
   User,
   Loader2,
 } from "lucide-react";
+import OrderStatusProgression from "@/components/admin/ui/OrderStatusProgression";
 
 const statusStyles = {
-  Pending: "bg-yellow-50 text-yellow-800 border border-yellow-200",
-  Confirmed: "bg-blue-50 text-blue-800 border border-blue-200",
-  Shipped: "bg-purple-50 text-purple-800 border border-purple-200",
-  Delivered: "bg-green-50 text-green-800 border border-green-200",
-  Cancelled: "bg-red-50 text-red-800 border border-red-200",
+  PENDING: "bg-yellow-50 text-yellow-800 border border-yellow-200",
+  CONFIRMED: "bg-blue-50 text-blue-800 border border-blue-200",
+  SHIPPED: "bg-purple-50 text-purple-800 border border-purple-200",
+  DELIVERED: "bg-green-50 text-green-800 border border-green-200",
+  CANCELLED: "bg-red-50 text-red-800 border border-red-200",
 };
 
 const statusOptions = [
@@ -53,6 +54,8 @@ export function Orders() {
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextUrl, setNextUrl] = useState(null);
   const [statusLoadingIds, setStatusLoadingIds] = useState([]);
 
   const api = useAdminApi();
@@ -69,17 +72,49 @@ export function Orders() {
     }
   }, [orders, statusFilter]);
 
-  const loadOrders = async () => {
+  const normalizePath = (url) => {
+    try {
+      if (url?.startsWith("http")) {
+        const u = new URL(url);
+        let path = `${u.pathname}${u.search}`;
+        if (path.startsWith("/api/")) {
+          path = path.substring(4);
+        }
+        return path;
+      }
+    } catch (error) {
+      console.error("Error normalizing URL:", error);
+    }
+    return url;
+  };
+
+  const loadOrders = async (url = "/admin/orders/") => {
     setIsLoading(true);
-    const result = await api.get("/admin/orders/");
+    const result = await api.get(normalizePath(url));
     if (result.success) {
       const data = result.data;
       const list = Array.isArray(data) ? data : data?.results ?? [];
       setOrders(list);
+      setNextUrl(data?.next ?? null);
     } else {
       toast({ variant: "destructive", title: "Failed to load orders" });
     }
     setIsLoading(false);
+  };
+
+  const loadMore = async () => {
+    if (!nextUrl || isLoadingMore) return;
+    setIsLoadingMore(true);
+    const result = await api.get(normalizePath(nextUrl));
+    if (result.success) {
+      const data = result.data;
+      const more = Array.isArray(data) ? data : data?.results ?? [];
+      setOrders((prev) => [...prev, ...more]);
+      setNextUrl(data?.next ?? null);
+    } else {
+      toast({ variant: "destructive", title: "Failed to load more" });
+    }
+    setIsLoadingMore(false);
   };
 
   const handleStatusUpdate = async (orderId, newStatus) => {
@@ -98,7 +133,10 @@ export function Orders() {
       if (selectedOrder?.id === orderId) {
         setSelectedOrder({ ...selectedOrder, order_status: newStatus });
       }
-      toast({ title: "Order status updated successfully." });
+      toast({
+        title: "Order status updated successfully",
+        description: `Order #${orderId} is now ${newStatus.toLowerCase()}`,
+      });
     } else {
       toast({
         title: "Failed to update order status",
@@ -135,20 +173,35 @@ export function Orders() {
     const total = orders.length;
 
     let pending = 0;
+    let confirmed = 0;
     let shipped = 0;
     let delivered = 0;
+    let cancelled = 0;
     let totalRevenue = 0;
 
     for (const o of orders) {
       const s = String(o.order_status || "").toUpperCase();
       if (s === "PENDING") pending += 1;
+      else if (s === "CONFIRMED") confirmed += 1;
       else if (s === "SHIPPED") shipped += 1;
       else if (s === "DELIVERED") delivered += 1;
+      else if (s === "CANCELLED") cancelled += 1;
 
-      totalRevenue += parseFloat(o.total_amount ?? 0) || 0;
+      // Sum revenue only for non-cancelled orders
+      if (s !== "CANCELLED") {
+        totalRevenue += parseFloat(o.final_amount ?? o.total_amount ?? 0) || 0;
+      }
     }
 
-    return { total, pending, shipped, delivered, totalRevenue };
+    return {
+      total,
+      pending,
+      confirmed,
+      shipped,
+      delivered,
+      cancelled,
+      totalRevenue,
+    };
   };
 
   const stats = getOrderStats();
@@ -181,7 +234,7 @@ export function Orders() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           <div className="bg-white border border-gray-200 rounded-md p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -203,6 +256,18 @@ export function Orders() {
                 </p>
               </div>
               <Calendar className="w-8 h-8 text-yellow-500" />
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-md p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Confirmed</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {stats.confirmed}
+                </p>
+              </div>
+              <Calendar className="w-8 h-8 text-blue-500" />
             </div>
           </div>
 
@@ -275,9 +340,9 @@ export function Orders() {
                     "Order ID",
                     "Customer",
                     "Total",
-                    "Status",
+                    "Status & Actions",
                     "Date",
-                    "Actions",
+                    "View",
                   ].map((h) => (
                     <th
                       key={h}
@@ -318,18 +383,26 @@ export function Orders() {
                       </td>
 
                       <td className="px-6 py-4 text-sm font-semibold text-green-700">
-                        {formatCurrency(order.total_amount)}
+                        {formatCurrency(
+                          order.final_amount ?? order.total_amount
+                        )}
+                        {Number(order.discount_amount || 0) > 0 && (
+                          <div className="text-xs text-emerald-700">
+                            −{formatCurrency(order.discount_amount)}
+                            {order.coupon_info?.code
+                              ? ` (${order.coupon_info.code})`
+                              : ""}
+                          </div>
+                        )}
                       </td>
 
                       <td className="px-6 py-4">
-                        <div
-                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
-                            statusStyles[order.order_status] ||
-                            "bg-gray-50 text-gray-700 border border-gray-200"
-                          }`}
-                        >
-                          {order.order_status}
-                        </div>
+                        <OrderStatusProgression
+                          currentStatus={order.order_status}
+                          orderId={order.id}
+                          onStatusChange={handleStatusUpdate}
+                          isLoading={isRowUpdating}
+                        />
                       </td>
 
                       <td className="px-6 py-4 text-sm text-gray-700">
@@ -337,77 +410,15 @@ export function Orders() {
                       </td>
 
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => viewOrderDetails(order)}
-                            className="border-gray-300 text-gray-800 hover:bg-gray-100"
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View
-                          </Button>
-
-                          <div className="flex items-center">
-                            {(() => {
-                              const isRowUpdating = statusLoadingIds.includes(
-                                order.id
-                              );
-                              const isCancelled =
-                                String(
-                                  order.order_status || ""
-                                ).toUpperCase() === "CANCELLED";
-
-                              return (
-                                <>
-                                  <Select
-                                    value={order.order_status}
-                                    onValueChange={(value) =>
-                                      !isCancelled &&
-                                      handleStatusUpdate(order.id, value)
-                                    }
-                                  >
-                                    <SelectTrigger
-                                      disabled={isCancelled || isRowUpdating}
-                                      title={
-                                        isCancelled
-                                          ? "Cancelled — status locked"
-                                          : undefined
-                                      }
-                                      className={`bg-white border border-gray-300 text-gray-900 h-9 ${
-                                        isRowUpdating
-                                          ? "pointer-events-none opacity-60"
-                                          : ""
-                                      } ${
-                                        isCancelled
-                                          ? "opacity-60 cursor-not-allowed"
-                                          : ""
-                                      }`}
-                                      aria-disabled={
-                                        isCancelled || isRowUpdating
-                                      }
-                                    >
-                                      <SelectValue
-                                        placeholder={order.order_status}
-                                      />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-white border border-gray-200 text-gray-900">
-                                      {statusOptions.map((status) => (
-                                        <SelectItem key={status} value={status}>
-                                          {status}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-
-                                  {isRowUpdating && (
-                                    <Loader2 className="w-4 h-4 ml-2 animate-spin text-gray-500" />
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </div>
-                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => viewOrderDetails(order)}
+                          className="border-gray-300 text-gray-800 hover:bg-gray-100"
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          View
+                        </Button>
                       </td>
                     </motion.tr>
                   );
@@ -416,6 +427,26 @@ export function Orders() {
             </table>
           </div>
         </div>
+
+        {/* Load more */}
+        {nextUrl && (
+          <div className="flex justify-center mt-6">
+            <Button
+              onClick={loadMore}
+              disabled={isLoadingMore}
+              className="min-w-[160px] bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {isLoadingMore ? (
+                <div className="flex items-center">
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Loading...
+                </div>
+              ) : (
+                "Load More Orders"
+              )}
+            </Button>
+          </div>
+        )}
 
         {/* Empty state */}
         {filteredOrders.length === 0 && (
@@ -528,9 +559,25 @@ export function Orders() {
                       Total Amount:
                     </span>
                     <span className="text-2xl font-bold text-green-700">
-                      {formatCurrency(selectedOrder.total_amount)}
+                      {formatCurrency(
+                        selectedOrder.final_amount ?? selectedOrder.total_amount
+                      )}
                     </span>
                   </div>
+                  {Number(selectedOrder.discount_amount || 0) > 0 && (
+                    <div className="flex justify-between items-center mt-2 text-sm text-emerald-700">
+                      <span>
+                        Discount{" "}
+                        {selectedOrder.coupon_info?.code
+                          ? `(${selectedOrder.coupon_info.code})`
+                          : ""}
+                        :
+                      </span>
+                      <span>
+                        -{formatCurrency(selectedOrder.discount_amount)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 
 const CANCEL_REASONS = [
   { value: "CHANGE_MIND", label: "Changed my mind" },
@@ -21,6 +21,8 @@ const OrdersPage = () => {
   const { token } = useAuth();
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextUrl, setNextUrl] = useState(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -31,31 +33,68 @@ const OrdersPage = () => {
 
   const API_BASE = import.meta.env.VITE_API_URL;
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      if (!token) return;
+  const normalizePath = (url) => {
+    // Convert absolute DRF "next" URLs to path for fetch
+    try {
+      if (url?.startsWith("http")) {
+        const u = new URL(url);
+        return `${u.pathname}${u.search}`;
+      }
+    } catch {}
+    return url;
+  };
+
+  const fetchOrders = async (url = "/api/orders/", append = false) => {
+    if (!token) return;
+
+    if (append) {
+      setIsLoadingMore(true);
+    } else {
       setIsLoading(true);
-      try {
-        const res = await fetch(`${API_BASE}/api/orders/`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error(`Failed to fetch orders (${res.status})`);
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : data?.results ?? [];
-        setOrders(list);
-      } catch (error) {
-        console.error(error);
-        toast({
-          title: "Error loading orders",
-          description: "Could not fetch your orders. Please try again later.",
-          variant: "destructive",
-        });
-      } finally {
+    }
+
+    try {
+      const normalizedUrl = normalizePath(url);
+      const res = await fetch(`${API_BASE}${normalizedUrl}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error(`Failed to fetch orders (${res.status})`);
+
+      const data = await res.json();
+      const ordersList = Array.isArray(data) ? data : data?.results ?? [];
+
+      if (append) {
+        setOrders((prev) => [...prev, ...ordersList]);
+      } else {
+        setOrders(ordersList);
+      }
+
+      setNextUrl(data?.next ?? null);
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Error loading orders",
+        description: "Could not fetch your orders. Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      if (append) {
+        setIsLoadingMore(false);
+      } else {
         setIsLoading(false);
       }
-    };
+    }
+  };
+
+  useEffect(() => {
     fetchOrders();
   }, [token, API_BASE]);
+
+  const loadMore = async () => {
+    if (!nextUrl || isLoadingMore) return;
+    await fetchOrders(nextUrl, true);
+  };
 
   const openDetails = (order) => {
     setSelectedOrder(order);
@@ -137,86 +176,108 @@ const OrdersPage = () => {
       <h1 className="text-3xl font-bold">My Orders</h1>
 
       {orders.length === 0 ? (
-        <p className="text-gray-500">You haven’t placed any orders yet.</p>
+        <p className="text-gray-500">You haven't placed any orders yet.</p>
       ) : (
-        <div className="grid gap-6">
-          {orders.map((order) => (
-            <Card
-              key={order.id}
-              className="overflow-visible transform transition-transform hover:-translate-y-1 hover:shadow-lg"
-            >
-              <CardHeader className="flex justify-between items-start">
-                <CardTitle>Order #{order.id}</CardTitle>
-                <Badge
-                  variant={
-                    order.order_status.toLowerCase() === "pending"
-                      ? "secondary"
-                      : order.order_status.toLowerCase() === "delivered"
-                      ? "success"
-                      : order.order_status.toLowerCase() === "cancelled"
-                      ? "destructive"
-                      : "outline"
-                  }
-                  className="uppercase"
-                >
-                  {order.order_status}
-                </Badge>
-              </CardHeader>
+        <>
+          <div className="grid gap-6">
+            {orders.map((order) => (
+              <Card
+                key={order.id}
+                className="overflow-visible transform transition-transform hover:-translate-y-1 hover:shadow-lg"
+              >
+                <CardHeader className="flex justify-between items-start">
+                  <CardTitle>Order #{order.id}</CardTitle>
+                  <Badge
+                    variant={
+                      order.order_status.toLowerCase() === "pending"
+                        ? "secondary"
+                        : order.order_status.toLowerCase() === "delivered"
+                        ? "success"
+                        : order.order_status.toLowerCase() === "cancelled"
+                        ? "destructive"
+                        : "outline"
+                    }
+                    className="uppercase"
+                  >
+                    {order.order_status}
+                  </Badge>
+                </CardHeader>
 
-              <CardContent className="pt-0">
-                <div className="flex justify-between text-sm text-gray-600 mb-4">
-                  <div>
-                    Placed on{" "}
-                    <span className="font-medium">
-                      {new Date(order.ordered_at).toLocaleString()}
-                    </span>
+                <CardContent className="pt-0">
+                  <div className="flex justify-between text-sm text-gray-600 mb-4">
+                    <div>
+                      Placed on{" "}
+                      <span className="font-medium">
+                        {new Date(order.ordered_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <div>
+                      Total:{" "}
+                      <span className="font-semibold text-gray-800">
+                        ${formatMoney(order.final_amount)}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    Total:{" "}
-                    <span className="font-semibold text-gray-800">
-                      ${formatMoney(order.total_amount)}
-                    </span>
-                  </div>
-                </div>
 
-                <Separator className="my-4" />
+                  <Separator className="my-4" />
 
-                <ul className="space-y-2">
-                  {order.items.map((item, idx) => (
-                    <li
-                      key={idx}
-                      className="flex justify-between items-center text-sm"
-                    >
-                      <div>
-                        {item.product_name} × {item.quantity}
-                      </div>
-                      <div>${formatMoney(item.price_at_order)}</div>
-                    </li>
-                  ))}
-                </ul>
+                  <ul className="space-y-2">
+                    {order.items.map((item, idx) => (
+                      <li
+                        key={idx}
+                        className="flex justify-between items-center text-sm"
+                      >
+                        <div>
+                          {item.product_name} × {item.quantity}
+                        </div>
+                        <div>${formatMoney(item.price_at_order)}</div>
+                      </li>
+                    ))}
+                  </ul>
 
-                <div className="flex justify-end gap-2 mt-4">
-                  {order.can_cancel && (
+                  <div className="flex justify-end gap-2 mt-4">
+                    {order.can_cancel && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => openDetails(order)}
+                      >
+                        Cancel Order
+                      </Button>
+                    )}
                     <Button
-                      variant="destructive"
+                      variant="outline"
                       size="sm"
                       onClick={() => openDetails(order)}
                     >
-                      Cancel Order
+                      View Details
                     </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openDetails(order)}
-                  >
-                    View Details
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Load More Button */}
+          {nextUrl && (
+            <div className="flex justify-center mt-6">
+              <Button
+                onClick={loadMore}
+                disabled={isLoadingMore}
+                className="min-w-[160px] bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {isLoadingMore ? (
+                  <div className="flex items-center">
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Loading...
+                  </div>
+                ) : (
+                  "Load More Orders"
+                )}
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       <AnimatePresence>
@@ -312,7 +373,7 @@ const OrdersPage = () => {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="text-right sm:text-left">
                   <p className="text-2xl font-bold">
-                    Total Amount: ${formatMoney(selectedOrder.total_amount)}
+                    Total Amount: ${formatMoney(selectedOrder.final_amount)}
                   </p>
                   <p className="mt-1 text-sm text-gray-500">
                     Placed on{" "}
