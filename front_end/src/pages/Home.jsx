@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import ProductCard from "@/components/products/ProductCard";
+import FlashSaleSpotlight from "@/components/flashsale/FlashSaleSpotlight";
 import { useToast } from "@/components/ui/use-toast";
 import { MessageCircle, Mail, Phone, X } from "lucide-react";
 
@@ -324,6 +325,8 @@ const Home = () => {
           </>
         )}
       </AnimatePresence>
+
+      <FlashSaleSpotlight />
     </div>
   );
 };

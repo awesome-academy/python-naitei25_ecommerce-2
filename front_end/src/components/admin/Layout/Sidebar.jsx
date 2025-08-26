@@ -1,6 +1,14 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Package, ShoppingCart, Users, FolderOpen, LogOut } from "lucide-react";
+import {
+  Package,
+  ShoppingCart,
+  Users,
+  FolderOpen,
+  LogOut,
+  BadgeCheck,
+  Folder,
+} from "lucide-react";
 import { Button } from "@/components/admin/ui/button";
 import { useAdminAuth as useAuth } from "@/contexts/AdminAuth";
 
@@ -9,6 +17,8 @@ const navigation = [
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { name: "Categories", href: "/admin/categories", icon: FolderOpen },
   { name: "Users", href: "/admin/users", icon: Users },
+  { name: "Coupons", href: "/admin/coupons", icon: BadgeCheck },
+  { name: "FlashSale", href: "/admin/flash-sale", icon: FolderOpen },
 ];
 
 export function Sidebar() {

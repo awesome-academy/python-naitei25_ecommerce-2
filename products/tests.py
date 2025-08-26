@@ -1,17 +1,20 @@
 # products/tests.py
 from __future__ import annotations
 
-from decimal import Decimal
-from unittest.mock import patch, MagicMock
+import os
+from datetime import timedelta
+from decimal import Decimal, ROUND_HALF_UP
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
-from django.urls import reverse
 from django.test import TestCase
-from rest_framework.test import APIClient
+from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
+from rest_framework.test import APIClient
 
+from orders.models import FlashSale
 from products.models import Category, Product
-import os
 
 
 def _extract_results(data):
@@ -252,3 +255,138 @@ class ProductsViewsTests(TestCase):
         resp_empty = self.client.get(url, {"q": ""})
         self.assertEqual(resp_empty.status_code, status.HTTP_200_OK)
         self.assertEqual(resp_empty.json().get("results", []), [])
+
+class ProductsFlashSalePricingTests(ProductsViewsTests):
+    """
+    Extends the base fixtures from ProductsViewsTests.
+    Verifies sale-aware fields on list/detail endpoints.
+    """
+
+    def _q(self, d: Decimal) -> str:
+        # helper: quantize to 0.01 as string like serializers do
+        return str(d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+    def test_list_includes_sale_fields_when_flash_sale_active(self):
+        now = timezone.now()
+        # 20% off on p1 (19.99 -> 15.99)
+        fs = FlashSale.objects.create(
+            name="Test Sale",
+            discount_percent=Decimal("20.00"),
+            start_date=now - timedelta(hours=1),
+            end_date=now + timedelta(hours=1),
+            is_active=True,
+        )
+        fs.products.add(self.p1)
+
+        url = reverse("products:api_product_list")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+        results = data.get("results", data)
+
+        # find p1 row
+        row = next(r for r in results if r["id"] == self.p1.id)
+        expected_sale = self._q(Decimal("19.99") * Decimal("0.80"))
+
+        # original price is still there
+        self.assertEqual(row["price"], self._q(Decimal("19.99")))
+        # effective/sale reflect discount
+        self.assertEqual(row["effective_price"], expected_sale)
+        self.assertEqual(row["sale_price"], expected_sale)
+        self.assertEqual(row["discount_percent"], 20.0)
+        self.assertIsInstance(row["flash_sale_info"], dict)
+        self.assertEqual(row["flash_sale_info"]["id"], fs.id)
+
+        # p2 is out of stock — must not appear even if added to sale
+        fs.products.add(self.p2)
+        resp2 = self.client.get(url)
+        results2 = resp2.json().get("results", [])
+        ids2 = {r["id"] for r in results2}
+        self.assertNotIn(self.p2.id, ids2)
+
+    def test_detail_sale_fields_when_active(self):
+        now = timezone.now()
+        fs = FlashSale.objects.create(
+            name="Detail Sale",
+            discount_percent=Decimal("30.00"),  # 19.99 -> 13.99
+            start_date=now - timedelta(minutes=10),
+            end_date=now + timedelta(minutes=10),
+            is_active=True,
+        )
+        fs.products.add(self.p1)
+
+        url = reverse("products:api_product_detail", args=[self.p1.id])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+
+        expected_sale = self._q(Decimal("19.99") * Decimal("0.70"))
+
+        self.assertEqual(data["price"], self._q(Decimal("19.99")))
+        self.assertEqual(data["effective_price"], expected_sale)
+        self.assertEqual(data["sale_price"], expected_sale)
+        self.assertEqual(data["discount_percent"], 30.0)
+        self.assertIsNotNone(data["flash_sale_info"])
+        self.assertEqual(data["flash_sale_info"]["id"], fs.id)
+
+    def test_upcoming_or_expired_sales_do_not_apply(self):
+        now = timezone.now()
+
+        upcoming = FlashSale.objects.create(
+            name="Upcoming",
+            discount_percent=Decimal("50.00"),
+            start_date=now + timedelta(hours=1),
+            end_date=now + timedelta(hours=2),
+            is_active=True,
+        )
+        upcoming.products.add(self.p1)
+
+        expired = FlashSale.objects.create(
+            name="Expired",
+            discount_percent=Decimal("90.00"),
+            start_date=now - timedelta(hours=2),
+            end_date=now - timedelta(hours=1),
+            is_active=True,
+        )
+        expired.products.add(self.p1)
+
+        url = reverse("products:api_product_detail", args=[self.p1.id])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+
+        # No discount should be applied
+        self.assertEqual(data["price"], self._q(Decimal("19.99")))
+        self.assertEqual(data["effective_price"], self._q(Decimal("19.99")))
+        self.assertIsNone(data["sale_price"])
+        self.assertIsNone(data["discount_percent"])
+        self.assertIsNone(data["flash_sale_info"])
+
+    def test_highest_discount_wins_when_overlapping(self):
+        now = timezone.now()
+        sale10 = FlashSale.objects.create(
+            name="10off",
+            discount_percent=Decimal("10.00"),
+            start_date=now - timedelta(minutes=30),
+            end_date=now + timedelta(minutes=30),
+            is_active=True,
+        )
+        sale25 = FlashSale.objects.create(
+            name="25off",
+            discount_percent=Decimal("25.00"),
+            start_date=now - timedelta(minutes=5),
+            end_date=now + timedelta(minutes=5),
+            is_active=True,
+        )
+        sale10.products.add(self.p1)
+        sale25.products.add(self.p1)
+
+        url = reverse("products:api_product_detail", args=[self.p1.id])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+
+        # expect 25% applied
+        expected_sale = self._q(Decimal("19.99") * Decimal("0.75"))
+        self.assertEqual(data["sale_price"], expected_sale)
+        self.assertEqual(data["discount_percent"], 25.0)
