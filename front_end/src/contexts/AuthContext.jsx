@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
 
   // dj-rest-auth endpoints (already mounted in your backend urls)
   const DJ_LOGIN = `${API_URL}/dj-rest-auth/login/`; // email/password
-  const DJ_REGISTER = `${API_URL}/dj-rest-auth/registration/`; // registration
+  const DJ_REGISTER = `${API_URL}/api/auth/register/`; // registration
   const DJ_GOOGLE = `${API_URL}/dj-rest-auth/google/`; // google oauth
   const DJ_REFRESH = `${API_URL}/dj-rest-auth/token/refresh/`; // jwt refresh
   const DJ_USER = `${API_URL}/dj-rest-auth/user/`; // current user
@@ -243,8 +243,7 @@ export function AuthProvider({ children }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email,
-            password1: password, // dj-rest-auth default expects password1/password2
-            password2: password,
+            password,
             first_name: firstName,
             last_name: lastName,
           }),

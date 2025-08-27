@@ -14,6 +14,7 @@ import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import RefundPolicy from "@/pages/RefundPolicy";
 import OrdersPage from "@/pages/OrdersPage";
 import ProfilePage from "@/pages/Profile";
+import MyReviews from "./pages/MyReviews";
 
 import AdminRoutes from "@/Routes/AdminRoutes";
 
@@ -35,6 +36,7 @@ function App() {
               <Route path="privacy-policy" element={<PrivacyPolicy />} />
               <Route path="refund-policy" element={<RefundPolicy />} />
               <Route path="profile" element={<ProfilePage />} />
+              <Route path="my-reviews" element={<MyReviews />} />
             </Route>
           </Routes>
 
