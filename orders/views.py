@@ -7,13 +7,16 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import AllowAny
 from django.utils.translation import gettext as _
 
 from cart.models import Cart
 from cart.views import calculate_cart_total
-from .models import Order, OrderItem, Coupon
-from .serializers import OrderSerializer, CouponApplySerializer, CouponSerializer
+from .models import Order, OrderItem, Coupon, FlashSale
+from .serializers import OrderSerializer, CouponApplySerializer, CouponSerializer, FlashSaleSerializer, FlashSaleListSerializer, ActiveFlashSaleSerializer, ProductInstantSerializer
 from core.constants import OrderStatus, CancelReason
+from django.utils import timezone
+from products.models import Product
 
 
 class OrderListCreateAPIView(generics.ListCreateAPIView):
@@ -30,7 +33,40 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
 
         with transaction.atomic():
             cart, _ = Cart.objects.select_for_update().get_or_create(user=request.user)
-            total = calculate_cart_total(cart.items)
+            total = Decimal('0.00')
+            order_items_data = []
+            
+            for cart_item in cart.items:
+                product_id = cart_item["product_id"]
+                quantity = cart_item["quantity"]
+                
+                # Lấy giá gốc
+                original_price = Decimal(cart_item["price"])
+                final_price = original_price
+                
+                # Kiểm tra xem sản phẩm có trong Flash Sale đang hoạt động không
+                now = timezone.now()
+                active_flash_sales = FlashSale.objects.filter(
+                    is_active=True,
+                    start_date__lte=now,
+                    end_date__gte=now,
+                    products__id=product_id
+                )
+                
+                # Nếu có Flash Sale, áp dụng giá giảm
+                if active_flash_sales.exists():
+                    flash_sale = active_flash_sales.first()
+                    final_price = flash_sale.calculate_sale_price(original_price)
+                
+                # Tính tổng cho sản phẩm này
+                total += final_price * quantity
+                
+                # Lưu thông tin cho OrderItem
+                order_items_data.append({
+                    'product_id': product_id,
+                    'quantity': quantity,
+                    'price_at_order': final_price
+                })
             
             # Apply coupon if provided
             coupon_code = request.data.get('coupon_code')
@@ -69,11 +105,11 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
             order_items = [
                 OrderItem(
                     order=order,
-                    product_id=ci["product_id"],
-                    quantity=ci["quantity"],
-                    price_at_order=Decimal(ci["price"]),
+                    product_id=data['product_id'],
+                    quantity=data['quantity'],
+                    price_at_order=data['price_at_order'],
                 )
-                for ci in cart.items
+                for data in order_items_data
             ]
 
             OrderItem.objects.bulk_create(order_items)
@@ -214,3 +250,66 @@ class AdminOrderDetailAPIView(generics.RetrieveUpdateAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+class AdminFlashSaleListCreateAPIView(generics.ListCreateAPIView):
+    """Admin view to list and create flash sales"""
+    serializer_class = FlashSaleSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    queryset = FlashSale.objects.all().order_by('-created_at')
+
+class AdminFlashSaleDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    """Admin view to manage individual flash sales"""
+    serializer_class = FlashSaleSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    queryset = FlashSale.objects.all()
+
+class ActiveFlashSaleListAPIView(generics.ListAPIView):
+    """Public view to get active flash sales"""
+    serializer_class = ActiveFlashSaleSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        now = timezone.now()
+        return FlashSale.objects.filter(
+            is_active=True,
+            start_date__lte=now,
+            end_date__gte=now
+        ).order_by('-created_at')
+
+class FlashSaleProductListAPIView(generics.ListAPIView):
+    """Get products from a specific flash sale"""
+    serializer_class = ProductInstantSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        flash_sale_id = self.kwargs['pk']
+        try:
+            flash_sale = FlashSale.objects.get(id=flash_sale_id)
+            return flash_sale.products.filter(is_in_stock=True)
+        except FlashSale.DoesNotExist:
+            return Product.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        try:
+            flash_sale = FlashSale.objects.get(id=self.kwargs['pk'])
+            products = self.get_queryset()
+            serializer = self.get_serializer(products, many=True)
+            
+            return Response({
+                'flash_sale': {
+                    'id': flash_sale.id,
+                    'name': flash_sale.name,
+                    'discount_percent': float(flash_sale.discount_percent),
+                    'start_date': flash_sale.start_date,
+                    'end_date': flash_sale.end_date,
+                    'remaining_time': flash_sale.get_remaining_time().total_seconds() if flash_sale.get_remaining_time() else 0
+                },
+                'products': serializer.data
+            })
+        except FlashSale.DoesNotExist:
+            return Response(
+                {'detail': _('Flash sale not found')},
+                status=status.HTTP_404_NOT_FOUND
+            )

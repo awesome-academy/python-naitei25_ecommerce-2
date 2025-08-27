@@ -3,6 +3,7 @@ from django.utils.translation import gettext_lazy as _
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 from core.constants import DecimalSettings
@@ -11,6 +12,7 @@ from core.constants import OrderStatus
 from core.constants import PaymentMethod
 from core.constants import CancelReason
 from core.models import BaseModel
+from products.models import Product
 from decimal import Decimal
 
 
@@ -174,4 +176,81 @@ class OrderItem(BaseModel):
             models.Index(fields=['order'], name='idx_order_items_order_id'),
             models.Index(fields=['product'],
                          name='idx_order_items_product_id'),
+        ]
+
+class FlashSale(BaseModel):
+    name = models.CharField(
+        max_length=FieldLengths.DEFAULT,
+        help_text=_("Name of the flash sale event")
+    )
+    discount_percent = models.DecimalField(
+        max_digits=DecimalSettings.DISCOUNT_PERCENT_MAX_DIGITS,
+        decimal_places=DecimalSettings.DISCOUNT_PERCENT_DECIMAL_PLACES,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text=_("Discount percentage (0-100)")
+    )
+    products = models.ManyToManyField(
+        Product,
+        related_name='flash_sales',
+        help_text=_("List of products included in the flash sale")
+    )
+    start_date = models.DateTimeField(
+        help_text=_("Start time of the flash sale")
+    )
+    end_date = models.DateTimeField(
+        help_text=_("End time of the flash sale")
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text=_("Whether this flash sale is active")
+    )
+
+    class Meta:
+        db_table = 'flash_sales'
+        indexes = [
+            models.Index(fields=['start_date'], name='idx_flash_sales_start_date'),
+            models.Index(fields=['end_date'], name='idx_flash_sales_end_date'),
+            models.Index(fields=['is_active'], name='idx_flash_sales_is_active'),
+        ]
+
+    def __str__(self):
+        return f"{self.name} - {self.discount_percent}%"
+
+    def is_currently_active(self):
+        """Check if flash sale is currently running"""
+        now = timezone.now()
+        return self.is_active and self.start_date <= now <= self.end_date
+
+    def get_remaining_time(self):
+        """Calculate remaining time for the flash sale"""
+        now = timezone.now()
+        if now < self.start_date:
+            return self.start_date - now  # Not started yet
+        elif now <= self.end_date:
+            return self.end_date - now  # Currently running
+        else:
+            return None  # Already ended
+
+    def calculate_sale_price(self, original_price):
+        """Calculate sale price after discount"""
+        if not isinstance(original_price, Decimal):
+            original_price = Decimal(str(original_price))
+        
+        discount_amount = original_price * (self.discount_percent / Decimal("100"))
+        return max(original_price - discount_amount, Decimal("0.00"))
+
+    def get_products_info(self):
+        """Get detailed information about products in flash sale"""
+        return [
+            {
+                'id': product.id,
+                'name': product.name,
+                'original_price': str(product.price.quantize(Decimal("0.01"))),
+                'sale_price': str(self.calculate_sale_price(product.price).quantize(Decimal("0.01"))),
+                'discount_percent': float(self.discount_percent),
+                'first_image': product.first_image_url,
+                'is_in_stock': product.is_in_stock,
+                'category': product.category.name if product.category else None
+            }
+            for product in self.products.all()
         ]
