@@ -6,7 +6,9 @@ import { LoginForm } from "@/components/admin/Auth/LoginForm";
 import { Products } from "@/pages/admin/Products";
 import { Orders } from "@/pages/admin/Orders";
 import { Users } from "@/pages/admin/Users";
+import { Coupons } from "@/pages/admin/Coupons";
 import { Categories } from "@/pages/admin/Categories";
+import { FlashSales } from "@/pages/admin/FlashSales";
 import { Toaster } from "@/components/admin/ui/toaster";
 import { toast } from "@/components/admin/ui/use-toast";
 
@@ -54,6 +56,8 @@ const AdminRoutesContent = () => {
             <Route path="categories" element={<Categories />} />
             <Route path="users" element={<Users />} />
             <Route path="orders" element={<Orders />} />
+            <Route path="coupons" element={<Coupons />} />
+            <Route path="flash-sale" element={<FlashSales />} />
           </Route>
         ) : (
           <Route

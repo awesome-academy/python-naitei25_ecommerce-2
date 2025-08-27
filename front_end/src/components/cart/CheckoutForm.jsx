@@ -8,6 +8,11 @@ import { useCart } from "@/contexts/CartContext";
 import { toast } from "@/components/ui/use-toast";
 import CouponBox from "@/components/cart/CouponBox";
 
+const toNum = (v, d = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : d;
+};
+
 const CheckoutForm = () => {
   const [formData, setFormData] = useState({
     name: "",
@@ -17,35 +22,137 @@ const CheckoutForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState("");
-
-  // coupon state: { code, discount_amount, final_amount, coupon }
-  const [coupon, setCoupon] = useState(null);
+  const [coupon, setCoupon] = useState(null); // { code, discount_amount, final_amount, coupon }
 
   const token = localStorage.getItem("token");
   const { cartItems, isCartLoading, getCartTotal, clearCart, closeCheckout } =
     useCart();
 
-  const subtotal = getCartTotal();
-  const totalToPay = coupon?.final_amount ?? subtotal;
+  // --- Sale-aware pricing state (UI only) ---
+  const apiUrl = import.meta.env.VITE_API_URL;
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricedItems, setPricedItems] = useState([]); // [{...cartItem, unit_price, original_unit_price, line_total, flash_sale}]
+  const [saleSubtotal, setSaleSubtotal] = useState(0);
+
+  const fallbackSubtotal = getCartTotal();
+  const displaySubtotal = pricingLoading
+    ? fallbackSubtotal
+    : saleSubtotal || fallbackSubtotal;
+  const totalToPay = coupon?.final_amount ?? displaySubtotal;
   const discount = coupon?.discount_amount ?? 0;
 
-  // prefill name from localStorage user
+  // Prefill from local user
   useEffect(() => {
     const stored = localStorage.getItem("user");
-    if (stored) {
-      try {
-        const u = JSON.parse(stored);
-        if (u.first_name && u.last_name) {
-          setFormData((prev) => ({
-            ...prev,
-            name: `${u.first_name} ${u.last_name}`,
-          }));
-        }
-      } catch (err) {
-        console.error("Could not parse user from localStorage", err);
+    if (!stored) return;
+    try {
+      const u = JSON.parse(stored);
+      if (u.first_name || u.last_name) {
+        setFormData((prev) => ({
+          ...prev,
+          name: [u.first_name, u.last_name].filter(Boolean).join(" ").trim(),
+        }));
       }
-    }
+    } catch {}
   }, []);
+
+  // Prefill from profile
+  useEffect(() => {
+    let alive = true;
+    if (!token) return;
+
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/auth/profile/`, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok) return;
+        const p = await res.json();
+        if (!alive) return;
+        setFormData((prev) => ({
+          name:
+            prev.name?.trim() ||
+            [p.first_name, p.last_name].filter(Boolean).join(" ").trim(),
+          phone: prev.phone || p.phone_number || "",
+          address: prev.address || p.address || "",
+        }));
+      } catch {}
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [token, apiUrl]);
+
+  // --- Fetch sale-aware prices for each unique product in cart ---
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      if (!cartItems?.length) {
+        setPricedItems([]);
+        setSaleSubtotal(0);
+        return;
+      }
+
+      try {
+        setPricingLoading(true);
+
+        const ids = [...new Set(cartItems.map((i) => i.product_id))];
+        const results = await Promise.all(
+          ids.map(async (id) => {
+            try {
+              const r = await fetch(`${apiUrl}/api/products/${id}/`);
+
+              if (!r.ok) return null;
+              const data = await r.json();
+              console.log("Fetched product", data);
+              return data;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        const byId = new Map();
+        results.forEach((d) => {
+          if (d && d.id != null) byId.set(d.id, d);
+        });
+
+        const items = cartItems.map((ci) => {
+          const detail = byId.get(ci.product_id);
+          const original =
+            detail?.price != null ? toNum(detail.price) : toNum(ci.price);
+          const effective =
+            detail?.sale_price != null ? toNum(detail.sale_price) : original;
+          const qty = toNum(ci.quantity, 1);
+
+          return {
+            ...ci,
+            unit_price: effective,
+            original_unit_price: original,
+            line_total: effective * qty,
+            flash_sale: detail?.flash_sale_info || null,
+          };
+        });
+
+        const subtotal = items.reduce((s, it) => s + it.line_total, 0);
+
+        if (!alive) return;
+        setPricedItems(items);
+        setSaleSubtotal(Number(subtotal.toFixed(2)));
+      } finally {
+        if (alive) setPricingLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [cartItems, apiUrl]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -64,25 +171,20 @@ const CheckoutForm = () => {
         payment_method: "COD",
         coupon_code: coupon?.code || undefined,
       };
-      console.log("DEBUG: Order payload sent:", orderData);
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/orders/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(orderData),
-        }
-      );
+      const response = await fetch(`${apiUrl}/api/orders/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(orderData),
+      });
 
       if (response.ok) {
         const result = await response.json();
         newOrderId = result.id;
       } else {
         const err = await response.json().catch(() => ({}));
-        // Surface coupon error if it failed on server during order creation
         if (err?.coupon_code) {
           toast({
             title: "Coupon error",
@@ -91,13 +193,11 @@ const CheckoutForm = () => {
               "Coupon is invalid/expired during checkout.",
             variant: "destructive",
           });
-        } else {
-          console.error("Order errors:", err);
         }
         throw new Error("Order placement failed");
       }
     } catch {
-      // fallback (demo)
+      // fallback demo id
       newOrderId = `ORD-${Date.now()}`;
     }
 
@@ -113,7 +213,7 @@ const CheckoutForm = () => {
     });
   };
 
-  // 1) While cart data is loading, show spinner
+  // Loading state
   if (isCartLoading) {
     return (
       <div className="p-6 flex items-center justify-center">
@@ -123,7 +223,7 @@ const CheckoutForm = () => {
     );
   }
 
-  // 2) After submission, show thank-you screen
+  // Thank-you state
   if (orderPlaced) {
     return (
       <motion.div
@@ -167,34 +267,61 @@ const CheckoutForm = () => {
     );
   }
 
-  // 3) Default: show order summary + form
+  // Default screen
   return (
     <div className="p-4 space-y-6">
       {/* Order Summary */}
       <div>
         <h3 className="font-semibold text-gray-900 mb-3">Order Summary</h3>
+
+        {pricingLoading && (
+          <div className="flex items-center text-sm text-gray-500 mb-2">
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            Updating prices…
+          </div>
+        )}
+
         <div className="space-y-2">
-          {cartItems.map((item) => (
-            <div key={item.product_id} className="flex justify-between text-sm">
-              <span>
-                {item.name} × {item.quantity}
-              </span>
-              <span>${(item.price * item.quantity).toFixed(2)}</span>
-            </div>
-          ))}
+          {(pricedItems.length ? pricedItems : cartItems).map((item) => {
+            const unit = toNum(item.unit_price ?? item.price);
+            const orig = toNum(item.original_unit_price ?? item.price);
+            const hasSale = unit < orig;
+            const qty = toNum(item.quantity, 1);
+            const line = (unit * qty).toFixed(2);
+
+            return (
+              <div
+                key={item.product_id}
+                className="flex justify-between text-sm"
+              >
+                <span className="flex-1 pr-2">
+                  {item.name} × {qty}
+                  {hasSale && (
+                    <span className="ml-2 inline-flex items-center gap-1 text-emerald-700">
+                      <span className="text-xs bg-emerald-100 px-2 py-0.5 rounded-full">
+                        Flash Sale
+                      </span>
+                      <span className="text-xs line-through text-gray-500">
+                        ${orig.toFixed(2)}
+                      </span>
+                    </span>
+                  )}
+                </span>
+                <span className="font-medium">${line}</span>
+              </div>
+            );
+          })}
 
           <div className="border-t border-gray-200 pt-2 flex justify-between text-sm">
             <span>Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
+            <span>${Number(displaySubtotal).toFixed(2)}</span>
           </div>
 
           {coupon && (
-            <>
-              <div className="flex justify-between text-sm text-emerald-700">
-                <span>Discount ({coupon.code})</span>
-                <span>- ${Number(discount).toFixed(2)}</span>
-              </div>
-            </>
+            <div className="flex justify-between text-sm text-emerald-700">
+              <span>Discount ({coupon.code})</span>
+              <span>- ${Number(coupon.discount_amount ?? 0).toFixed(2)}</span>
+            </div>
           )}
 
           <div className="border-t border-gray-200 pt-2 flex justify-between font-semibold">
@@ -204,11 +331,11 @@ const CheckoutForm = () => {
         </div>
       </div>
 
-      {/* Coupon input */}
+      {/* Coupon */}
       <div className="bg-gray-50 p-3 rounded-md">
         <h4 className="font-medium text-gray-900 mb-2">Have a coupon?</h4>
         <CouponBox
-          subtotal={subtotal}
+          subtotal={Number(displaySubtotal)}
           onApplied={(c) => setCoupon(c)}
           onCleared={() => setCoupon(null)}
         />

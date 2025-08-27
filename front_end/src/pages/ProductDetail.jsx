@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useCallback,
-  useRef,
-} from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { motion } from "framer-motion";
@@ -14,6 +8,11 @@ import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import ProductCard from "@/components/products/ProductCard";
+
+const toNum = (v, d = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : d;
+};
 
 const ProductDetail = () => {
   const { productId } = useParams();
@@ -53,7 +52,7 @@ const ProductDetail = () => {
       containerRef.current.style.transform = "translateX(0px)";
   }, [productId]);
 
-  // helper: pick category id from various API shapes (like we discussed)
+  // helper: pick category id from various API shapes
   const extractCategoryId = (data) => {
     if (typeof data?.category === "number") return data.category;
     if (typeof data?.category_id === "number") return data.category_id;
@@ -72,7 +71,7 @@ const ProductDetail = () => {
     return null;
   };
 
-  // fetch product details
+  // fetch product details (sale-aware)
   useEffect(() => {
     const fetchProduct = async () => {
       try {
@@ -85,7 +84,7 @@ const ProductDetail = () => {
         }
         const data = await response.json();
 
-        // Convert specification object into array of "Key: Value" strings
+        // specs -> array of "Key: Value" (filter out updated_at)
         const specs = data.specification
           ? Object.entries(data.specification)
               .filter(([key]) => key !== "updated_at")
@@ -97,14 +96,23 @@ const ProductDetail = () => {
               )
           : [];
 
+        const price = toNum(data.price);
+        const salePrice =
+          data.sale_price != null ? toNum(data.sale_price) : null;
+        const discountPercent =
+          data.discount_percent != null ? toNum(data.discount_percent) : null;
+
         setProduct({
           id: data.id,
           name: data.name,
           description: data.description,
-          price: parseFloat(data.price || 0),
-          specs,
-          images: data.image_urls || [],
-          inStock: data.is_in_stock,
+          price,
+          sale_price: salePrice,
+          discount_percent: discountPercent,
+          flash_sale_info: data.flash_sale_info || null,
+          images:
+            data.image_urls || (data.first_image ? [data.first_image] : []),
+          inStock: !!data.is_in_stock,
         });
 
         const catId = extractCategoryId(data);
@@ -117,19 +125,18 @@ const ProductDetail = () => {
     fetchProduct();
   }, [productId]);
 
-  // build related URL like Categories.jsx (category + optional search/pagination)
+  // build related URL
   const buildRelatedUrl = useCallback(() => {
     if (!categoryId) return null;
     let url = `${import.meta.env.VITE_API_URL}/api/products/`;
     const params = new URLSearchParams();
-    params.append("category", String(categoryId)); // same param your Categories page uses
-    // you can add more params if needed (e.g., search)
+    params.append("category", String(categoryId));
     const qs = params.toString();
     if (qs) url += `?${qs}`;
     return url;
   }, [categoryId]);
 
-  // fetch related when categoryId ready
+  // fetch related
   useEffect(() => {
     if (!categoryId) {
       setRelated([]);
@@ -146,9 +153,7 @@ const ProductDetail = () => {
         if (!res.ok) throw new Error("Failed to fetch related products");
         const data = await res.json();
 
-        // handle both paginated and plain list
         const results = Array.isArray(data) ? data : data.results || [];
-        // filter out the current product if present
         const filtered = results.filter((p) => p.id !== Number(productId));
         setRelated(filtered);
       } catch (e) {
@@ -167,7 +172,6 @@ const ProductDetail = () => {
 
   // slider controls (same behavior as Home.jsx)
   const CARD_WIDTH = 300; // keep in sync with class basis below
-
   const scrollPrev = useCallback(() => {
     if (!containerRef.current) return;
     setCurrentTransform((prev) => {
@@ -176,7 +180,6 @@ const ProductDetail = () => {
       return nextVal;
     });
   }, []);
-
   const scrollNext = useCallback(() => {
     if (!containerRef.current) return;
     setCurrentTransform((prev) => {
@@ -186,7 +189,7 @@ const ProductDetail = () => {
     });
   }, []);
 
-  // auto-scroll loop (duplicate list for seamless effect)
+  // auto-scroll
   useEffect(() => {
     if (related.length === 0 || isPaused) return;
 
@@ -209,7 +212,6 @@ const ProductDetail = () => {
     };
 
     animationRef.current = requestAnimationFrame(animate);
-
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
@@ -228,7 +230,19 @@ const ProductDetail = () => {
     if (product && product.inStock) {
       try {
         setIsAdding(true);
-        await addToCart(product, quantity);
+        // pass sale fields so cart/checkout can show discounted price
+        await addToCart(
+          {
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            sale_price: product.sale_price ?? null,
+            discount_percent: product.discount_percent ?? null,
+            image_urls: product.images,
+            is_in_stock: product.inStock,
+          },
+          quantity
+        );
       } finally {
         setIsAdding(false);
       }
@@ -254,6 +268,10 @@ const ProductDetail = () => {
     );
   }
 
+  const hasSale =
+    product.sale_price != null &&
+    toNum(product.sale_price) < toNum(product.price);
+
   return (
     <div className="py-8">
       <Helmet>
@@ -273,16 +291,20 @@ const ProductDetail = () => {
           {/* Main image */}
           <div className="mb-4">
             <div className="w-full h-96 bg-gray-100 flex items-center justify-center rounded-lg border border-gray-200">
-              <img
-                src={product.images[selectedImage]}
-                alt={product.name}
-                className="max-h-full max-w-full object-contain"
-              />
+              {product.images?.[selectedImage] ? (
+                <img
+                  src={product.images[selectedImage]}
+                  alt={product.name}
+                  className="max-h-full max-w-full object-contain"
+                />
+              ) : (
+                <div className="text-gray-400">No image</div>
+              )}
             </div>
           </div>
           {/* Thumbnails */}
           <div className="flex space-x-2">
-            {product.images.map((image, index) => (
+            {product.images?.map((image, index) => (
               <button
                 key={index}
                 onClick={() => setSelectedImage(index)}
@@ -307,11 +329,31 @@ const ProductDetail = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
             {product.name}
           </h1>
+
+          {/* Price (sale-aware) */}
           <div className="mb-6">
-            <span className="text-3xl font-bold text-blue-600">
-              ${product.price.toFixed(2)}
-            </span>
+            {hasSale ? (
+              <div className="flex items-baseline gap-3">
+                <span className="text-3xl font-bold text-red-600">
+                  ${toNum(product.sale_price).toFixed(2)}
+                </span>
+                <span className="text-xl line-through text-gray-400">
+                  ${toNum(product.price).toFixed(2)}
+                </span>
+                {product.discount_percent != null && (
+                  <span className="text-sm bg-red-100 text-red-600 px-2 py-0.5 rounded">
+                    -{toNum(product.discount_percent)}%
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-3xl font-bold text-blue-600">
+                ${toNum(product.price).toFixed(2)}
+              </span>
+            )}
           </div>
+
+          {/* Stock */}
           <div className="mb-6">
             {product.inStock ? (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
@@ -323,11 +365,17 @@ const ProductDetail = () => {
               </span>
             )}
           </div>
-          <div className="mb-6">
-            <p className="text-gray-600 leading-relaxed">
-              {product.description}
-            </p>
-          </div>
+
+          {/* Description */}
+          {product.description && (
+            <div className="mb-6">
+              <p className="text-gray-600 leading-relaxed">
+                {product.description}
+              </p>
+            </div>
+          )}
+
+          {/* Specifications */}
           {product.specs?.length > 0 && (
             <div className="mb-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">
@@ -343,6 +391,7 @@ const ProductDetail = () => {
               </ul>
             </div>
           )}
+
           {/* Quantity and Add to Cart */}
           <div className="flex items-center space-x-4 mb-6">
             <div className="flex items-center border border-gray-300 rounded-md">
