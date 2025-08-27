@@ -23,6 +23,9 @@ class DecimalSettings:
     DISCOUNT_PERCENT_MAX_DIGITS = 5
     DISCOUNT_PERCENT_DECIMAL_PLACES = 2
 
+class ReviewSettings:
+    N_MOST_RECENT_REVIEWS = 5
+
 
 class PaginationSettings:
     """Constants for pagination"""
