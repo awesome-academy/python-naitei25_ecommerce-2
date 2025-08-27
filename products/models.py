@@ -5,6 +5,7 @@ from django.db import models
 from core.constants import DecimalSettings
 from core.constants import FieldLengths
 from core.models import BaseModel
+from django.utils import timezone
 
 
 class Category(BaseModel):
@@ -39,6 +40,14 @@ class Product(BaseModel):
     )
     specification = models.JSONField(default=list)
     is_in_stock = models.BooleanField(default=True)
+    stock_quantity = models.PositiveIntegerField(default=0)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save(update_fields=['is_deleted', 'deleted_at'])
 
     class Meta:
         db_table = 'products'

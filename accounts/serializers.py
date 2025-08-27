@@ -2,8 +2,25 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from allauth.socialaccount.models import SocialAccount
 from dj_rest_auth.registration.serializers import SocialLoginSerializer
+from dj_rest_auth.registration.serializers import RegisterSerializer
 
 User = get_user_model()
+
+
+class CustomRegisterSerializer(RegisterSerializer):
+    username = None
+
+    first_name = serializers.CharField(required=False, allow_blank=True)
+    last_name = serializers.CharField(required=False, allow_blank=True)
+
+    _has_phone_field = False
+
+    def get_cleaned_data(self):
+        data = super().get_cleaned_data()
+        data['first_name'] = self.validated_data.get('first_name', '')
+        data['last_name'] = self.validated_data.get('last_name', '')
+        return data
+    
 
 class CustomSocialLoginSerializer(SocialLoginSerializer):
     def validate(self, attrs):

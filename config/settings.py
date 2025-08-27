@@ -142,6 +142,7 @@ REST_AUTH = {
     'JWT_AUTH_HTTPONLY': False,
     'JWT_AUTH_SECURE': False,
     'JWT_AUTH_SAMESITE': 'Lax',
+    'REGISTER_SERIALIZER': 'accounts.serializers.CustomRegisterSerializer',
 }
 
 REST_AUTH_SERIALIZERS = {
