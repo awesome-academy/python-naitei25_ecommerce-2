@@ -14,7 +14,7 @@ from cart.models import Cart
 from cart.views import calculate_cart_total
 from .models import Order, OrderItem, Coupon, FlashSale
 from .serializers import OrderSerializer, CouponApplySerializer, CouponSerializer, FlashSaleSerializer, FlashSaleListSerializer, ActiveFlashSaleSerializer, ProductInstantSerializer
-from core.constants import OrderStatus, CancelReason
+from core.constants import OrderStatus, CancelReason, RejectReason
 from django.utils import timezone
 from products.models import Product
 
@@ -96,6 +96,7 @@ class OrderListCreateAPIView(generics.ListCreateAPIView):
 
             order = serializer.save(
                 user=request.user,
+                customer_email=request.user.email if request.user.is_authenticated else request.data.get('customer_email'),
                 total_amount=total,
                 discount_amount=discount_amount,
                 final_amount=final_amount,
@@ -224,6 +225,31 @@ class OrderRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
             return Response(serializer.data)
 
         # --- Admin xử lý các update khác ---
+        # Admin không được phép chuyển về trạng thái CANCELLED
+        if 'order_status' in request.data and request.data['order_status'] == OrderStatus.CANCELLED.value:
+            return Response(
+                {'detail': _('Admin cannot change order status to CANCELLED. Use REJECTED instead.')},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Kiểm tra nếu admin đang reject order
+        if 'order_status' in request.data and request.data['order_status'] == OrderStatus.REJECTED.value:
+            reject_reason = request.data.get('reject_reason')
+            
+            # Nếu không có lý do reject -> 400
+            if not reject_reason:
+                return Response(
+                    {'reject_reason': _('This field is required when rejecting an order.')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate reject reason
+            if reject_reason not in dict(RejectReason.choices()):
+                return Response(
+                    {'reject_reason': _('Invalid reject reason.')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -244,8 +270,33 @@ class AdminOrderDetailAPIView(generics.RetrieveUpdateAPIView):
     queryset = Order.objects.all()
 
     def update(self, request, *args, **kwargs):
-        # Admin có thể cập nhật bất kỳ trạng thái nào
         instance = self.get_object()
+        
+        # Admin không được phép chuyển về trạng thái CANCELLED
+        if 'order_status' in request.data and request.data['order_status'] == OrderStatus.CANCELLED.value:
+            return Response(
+                {'detail': _('Admin cannot change order status to CANCELLED. Use REJECTED instead.')},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Kiểm tra nếu admin đang reject order
+        if 'order_status' in request.data and request.data['order_status'] == OrderStatus.REJECTED.value:
+            reject_reason = request.data.get('reject_reason')
+            
+            # Nếu không có lý do reject -> 400
+            if not reject_reason:
+                return Response(
+                    {'reject_reason': _('This field is required when rejecting an order.')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate reject reason
+            if reject_reason not in dict(RejectReason.choices()):
+                return Response(
+                    {'reject_reason': _('Invalid reject reason.')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -313,3 +364,15 @@ class FlashSaleProductListAPIView(generics.ListAPIView):
                 {'detail': _('Flash sale not found')},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+class UpcomingFlashSaleListAPIView(generics.ListAPIView):
+    """Public view to get upcoming flash sales (not started yet)"""
+    serializer_class = ActiveFlashSaleSerializer
+    permission_classes = [AllowAny]
+    def get_queryset(self):
+        now = timezone.now()
+        return (
+            FlashSale.objects
+            .filter(is_active=True, start_date__gt=now)
+            .order_by('start_date')
+        )

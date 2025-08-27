@@ -53,6 +53,7 @@ class OrderStatus(str, Enum):
     SHIPPED = 'SHIPPED'
     DELIVERED = 'DELIVERED'
     CANCELLED = 'CANCELLED'
+    REJECTED = 'REJECTED'
 
     @classmethod
     def choices(cls):
@@ -67,6 +68,21 @@ class CancelReason(str, Enum):
     CHANGE_MIND = 'CHANGE_MIND'
     FOUND_CHEAPER = 'FOUND_CHEAPER'
     WRONG_ORDER  = 'WRONG_ORDER'
+    OTHER = 'OTHER'
+
+    @classmethod
+    def choices(cls):
+        return [
+            (reason.value, _(reason.name.replace('_', ' ').title()))
+            for reason in cls
+        ]
+    
+class RejectReason(str, Enum):
+    """Admin reject order reasons enumeration"""
+    OUT_OF_STOCK = 'OUT_OF_STOCK'
+    SUSPICIOUS_ORDER = 'SUSPICIOUS_ORDER'
+    PAYMENT_ISSUE = 'PAYMENT_ISSUE'
+    ADDRESS_ISSUE = 'ADDRESS_ISSUE'
     OTHER = 'OTHER'
 
     @classmethod
@@ -118,3 +134,15 @@ class FlashSaleSettings:
     MIN_DISCOUNT_PERCENT = Decimal('0')
     MAX_DISCOUNT_PERCENT = Decimal('100')
     MIN_DURATION_HOURS = 1
+
+class EmailTemplates:
+    """Constants for email templates"""
+    ORDER_PLACED = 'orders/emails/order_placed.html'
+    ORDER_CANCELLED = 'orders/emails/order_cancelled.html'
+    ORDER_DELIVERED = 'orders/emails/order_delivered.html'
+
+class EmailSubjects:
+    """Constants for email subjects"""
+    ORDER_PLACED = _('Order Confirmation - #{order_id}')
+    ORDER_CANCELLED = _('Order Cancelled - #{order_id}')
+    ORDER_DELIVERED = _('Order Delivered - #{order_id}')

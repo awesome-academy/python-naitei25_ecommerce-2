@@ -1,0 +1,19 @@
+{% load i18n %}
+<html>
+<body>
+    <h2>{% trans "Order Confirmation" %}</h2>
+    <p>{% trans "Dear" %} {{ customer_name }},</p>
+    <p>{% trans "Thank you for your order! Your order has been received and is being processed." %}</p>
+    
+    <h3>{% trans "Order Details" %}:</h3>
+    <p><strong>{% trans "Order ID" %}:</strong> #{{ order_id }}</p>
+    <p><strong>{% trans "Order Date" %}:</strong> {{ order_date }}</p>
+    <p><strong>{% trans "Total Amount" %}:</strong> {{ total_amount }} {{ currency }}</p>
+    
+    <h3>{% trans "Shipping Address" %}:</h3>
+    <p>{{ shipping_address }}</p>
+    
+    <p>{% trans "You can check your order status anytime in your account." %}</p>
+    <p>{% trans "Best regards," %}<br>{% trans "Python Intern Team" %}</p>
+</body>
+</html>
