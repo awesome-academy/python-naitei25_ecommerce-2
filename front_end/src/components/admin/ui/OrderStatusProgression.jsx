@@ -1,5 +1,5 @@
 // src/components/admin/ui/OrderStatusProgression.jsx
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { ChevronRight, X, AlertCircle } from "lucide-react";
 import { Button } from "@/components/admin/ui/button";
 import {
@@ -9,6 +9,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/admin/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/admin/ui/select";
 
 const STATUS_PROGRESSION = [
   { key: "PENDING", label: "Pending", color: "yellow" },
@@ -45,73 +52,116 @@ const STATUS_COLORS = {
   },
 };
 
+// Default reasons map to your Python `RejectReason`
+const DEFAULT_REJECT_REASONS = [
+  { value: "OUT_OF_STOCK", label: "Out of Stock" },
+  { value: "SUSPICIOUS_ORDER", label: "Suspicious Order" },
+  { value: "PAYMENT_ISSUE", label: "Payment Issue" },
+  { value: "ADDRESS_ISSUE", label: "Address Issue" },
+  { value: "OTHER", label: "Other" },
+];
+
 export const OrderStatusProgression = ({
   currentStatus,
   orderId,
   onStatusChange,
   isLoading = false,
+  /**
+   * Optional: handle rejection in parent.
+   * Signature: (orderId: number, reason: string) => Promise<void>|void
+   */
+  onReject,
+  /**
+   * Optional: override reject reasons from parent to keep FE and BE perfectly in sync.
+   * Format: [{ value: "OUT_OF_STOCK", label: "Out of Stock" }, ...]
+   */
+  rejectReasons = DEFAULT_REJECT_REASONS,
 }) => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
 
-  const getCurrentIndex = () => {
-    return STATUS_PROGRESSION.findIndex((s) => s.key === currentStatus);
-  };
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [selectedRejectReason, setSelectedRejectReason] = useState("");
+
+  const getCurrentIndex = () =>
+    STATUS_PROGRESSION.findIndex((s) => s.key === currentStatus);
 
   const getNextStatus = () => {
-    const currentIndex = getCurrentIndex();
-    if (currentIndex >= 0 && currentIndex < STATUS_PROGRESSION.length - 1) {
-      return STATUS_PROGRESSION[currentIndex + 1];
+    const idx = getCurrentIndex();
+    if (idx >= 0 && idx < STATUS_PROGRESSION.length - 1) {
+      return STATUS_PROGRESSION[idx + 1];
     }
     return null;
   };
 
-  const canCancel = currentStatus === "PENDING";
-  const canProgress = getNextStatus() !== null;
-  const isCancelled = currentStatus === "CANCELLED";
+  const canProgress = !!getNextStatus();
+  const canReject = !["DELIVERED", "CANCELLED", "REJECTED"].includes(
+    String(currentStatus || "")
+  );
 
+  const currentStatusObj = STATUS_PROGRESSION.find(
+    (s) => s.key === currentStatus
+  ) || {
+    key: currentStatus,
+    label:
+      currentStatus === "REJECTED"
+        ? "Rejected"
+        : currentStatus === "CANCELLED"
+        ? "Cancelled"
+        : String(currentStatus || "Unknown"),
+    color:
+      currentStatus === "REJECTED" || currentStatus === "CANCELLED"
+        ? "red"
+        : "yellow",
+  };
+
+  const colors = STATUS_COLORS[currentStatusObj.color] || STATUS_COLORS.yellow;
+
+  // --- Handlers ---
   const handleProgressClick = () => {
-    const nextStatus = getNextStatus();
-    if (nextStatus) {
-      setPendingAction({
-        type: "progress",
-        from: currentStatus,
-        to: nextStatus.key,
-        label: nextStatus.label,
-      });
-      setShowConfirmModal(true);
-    }
+    const next = getNextStatus();
+    if (!next) return;
+    setPendingAction({
+      type: "progress",
+      from: currentStatus,
+      to: next.key,
+      label: next.label,
+    });
+    setShowConfirmModal(true);
   };
 
-  const handleCancelClick = () => {
-    if (canCancel) {
-      setPendingAction({
-        type: "cancel",
-        from: currentStatus,
-        to: "CANCELLED",
-        label: "Cancelled",
-      });
-      setShowConfirmModal(true);
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (pendingAction && onStatusChange) {
+  const handleConfirmProgress = async () => {
+    if (pendingAction?.type === "progress" && onStatusChange) {
       await onStatusChange(orderId, pendingAction.to);
     }
     setShowConfirmModal(false);
     setPendingAction(null);
   };
 
-  const handleCancel = () => {
-    setShowConfirmModal(false);
-    setPendingAction(null);
+  const handleRejectClick = () => {
+    if (!canReject || isLoading) return;
+    setSelectedRejectReason("");
+    setShowRejectModal(true);
   };
 
-  const currentStatusObj = STATUS_PROGRESSION.find(
-    (s) => s.key === currentStatus
-  ) || { key: "CANCELLED", label: "Cancelled", color: "red" };
-  const colors = STATUS_COLORS[currentStatusObj.color];
+  const handleConfirmReject = async () => {
+    if (!selectedRejectReason) return;
+    if (typeof onReject === "function") {
+      await onReject(orderId, selectedRejectReason);
+    } else if (typeof onStatusChange === "function") {
+      // Fallback: pass optional payload as 3rd arg if parent supports it
+      await onStatusChange(orderId, "REJECTED", {
+        reject_reason: selectedRejectReason,
+      });
+    }
+    setShowRejectModal(false);
+  };
+
+  const reasonOptions = useMemo(
+    () =>
+      Array.isArray(rejectReasons) ? rejectReasons : DEFAULT_REJECT_REASONS,
+    [rejectReasons]
+  );
 
   return (
     <>
@@ -123,8 +173,8 @@ export const OrderStatusProgression = ({
           {currentStatusObj.label}
         </div>
 
-        {/* Progress Button */}
-        {canProgress && !isCancelled && (
+        {/* Forward Progress */}
+        {canProgress && (
           <Button
             size="sm"
             onClick={handleProgressClick}
@@ -136,27 +186,22 @@ export const OrderStatusProgression = ({
           </Button>
         )}
 
-        {/* Cancel Button */}
-        <Button
-          size="sm"
-          onClick={handleCancelClick}
-          disabled={!canCancel || isLoading || isCancelled}
-          className={`h-8 w-8 p-0 rounded-md transition-all ${
-            canCancel && !isCancelled
-              ? "bg-red-600 hover:bg-red-700 text-white"
-              : "bg-red-200 text-red-400 cursor-not-allowed opacity-50"
-          }`}
-          title={
-            canCancel && !isCancelled
-              ? "Cancel order"
-              : "Can only cancel pending orders"
-          }
-        >
-          <X className="w-4 h-4" />
-        </Button>
+        {/* Reject Button (red X) */}
+        {canReject && (
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleRejectClick}
+            disabled={isLoading}
+            className="h-8 w-8 p-0 rounded-md"
+            title="Reject order"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        )}
       </div>
 
-      {/* Confirmation Modal */}
+      {/* Confirm Progress Modal */}
       <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
         <DialogContent className="bg-white border border-gray-200 text-gray-900 max-w-md">
           <DialogHeader>
@@ -165,45 +210,85 @@ export const OrderStatusProgression = ({
               Confirm Status Change
             </DialogTitle>
             <DialogDescription className="text-gray-600">
-              {pendingAction?.type === "cancel" ? (
-                <>
-                  Are you sure you want to <strong>cancel</strong> order #
-                  {orderId}?
-                  <br />
-                  <span className="text-sm text-red-600 mt-2 block">
-                    This action cannot be undone.
-                  </span>
-                </>
-              ) : (
-                <>
-                  Change order #{orderId} status from{" "}
-                  <strong>{pendingAction?.from}</strong> to{" "}
-                  <strong>{pendingAction?.label}</strong>?
-                </>
-              )}
+              Change order #{orderId} status from{" "}
+              <strong>{pendingAction?.from}</strong> to{" "}
+              <strong>{pendingAction?.label}</strong>?
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex justify-end gap-3 mt-4">
             <Button
               variant="outline"
-              onClick={handleCancel}
+              onClick={() => {
+                setShowConfirmModal(false);
+                setPendingAction(null);
+              }}
               disabled={isLoading}
               className="border-gray-300 text-gray-700"
             >
               Cancel
             </Button>
             <Button
-              onClick={handleConfirm}
+              onClick={handleConfirmProgress}
               disabled={isLoading}
-              className={
-                pendingAction?.type === "cancel"
-                  ? "bg-red-600 hover:bg-red-700 text-white"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
-              }
+              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               {isLoading ? "Updating..." : "Confirm"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Modal with Reason Dropdown */}
+      <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
+        <DialogContent className="bg-white border border-gray-200 text-gray-900 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <X className="w-5 h-5 text-red-600" />
+              Reject Order #{orderId}
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Please select a reason for rejection.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-sm text-gray-700">Reject reason</label>
+              <Select
+                value={selectedRejectReason}
+                onValueChange={setSelectedRejectReason}
+              >
+                <SelectTrigger className="bg-white border border-gray-300 text-gray-900">
+                  <SelectValue placeholder="Select a reason" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 text-gray-900">
+                  {reasonOptions.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      {r.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowRejectModal(false)}
+                disabled={isLoading}
+                className="border-gray-300 text-gray-700"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmReject}
+                disabled={isLoading || !selectedRejectReason}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isLoading ? "Rejecting..." : "Reject Order"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

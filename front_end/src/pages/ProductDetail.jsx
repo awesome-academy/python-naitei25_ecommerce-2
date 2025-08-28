@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { motion } from "framer-motion";
-import { Minus, Plus, ShoppingCart, Loader2 } from "lucide-react";
+import { Minus, Plus, ShoppingCart, Loader2, PackageX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/components/ui/use-toast";
 import ProductCard from "@/components/products/ProductCard";
+import ProductReviews from "@/components/products/ProductReviews";
 
 const toNum = (v, d = 0) => {
   const n = Number(v);
@@ -16,13 +17,17 @@ const toNum = (v, d = 0) => {
 
 const ProductDetail = () => {
   const { productId } = useParams();
+  const navigate = useNavigate();
+
   const [product, setProduct] = useState(null);
+  const [isProductLoading, setIsProductLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const { addToCart } = useCart();
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   // ------- Related (same category) -------
   const [categoryId, setCategoryId] = useState(null);
@@ -38,6 +43,9 @@ const ProductDetail = () => {
   // reset when productId changes
   useEffect(() => {
     setProduct(null);
+    setIsProductLoading(true);
+    setNotFound(false);
+
     setSelectedImage(0);
     setQuantity(1);
 
@@ -71,7 +79,7 @@ const ProductDetail = () => {
     return null;
   };
 
-  // fetch product details (sale-aware)
+  // fetch product details (sale-aware) with inline 404 fallback
   useEffect(() => {
     const fetchProduct = async () => {
       try {
@@ -79,7 +87,8 @@ const ProductDetail = () => {
           `${import.meta.env.VITE_API_URL}/api/products/${productId}/`
         );
         if (!response.ok) {
-          console.error("Failed to fetch product");
+          setNotFound(true);
+          setIsProductLoading(false);
           return;
         }
         const data = await response.json();
@@ -113,12 +122,17 @@ const ProductDetail = () => {
           images:
             data.image_urls || (data.first_image ? [data.first_image] : []),
           inStock: !!data.is_in_stock,
+          specs, // <- ensure specs exist for rendering below
         });
 
         const catId = extractCategoryId(data);
         setCategoryId(catId || null);
+        setNotFound(false);
       } catch (error) {
-        console.error("Error fetching product:", error);
+        // Any fetch/parse errors -> show not found fallback on this page
+        setNotFound(true);
+      } finally {
+        setIsProductLoading(false);
       }
     };
 
@@ -170,7 +184,7 @@ const ProductDetail = () => {
     return () => abort.abort();
   }, [categoryId, productId, buildRelatedUrl]);
 
-  // slider controls (same behavior as Home.jsx)
+  // slider controls
   const CARD_WIDTH = 300; // keep in sync with class basis below
   const scrollPrev = useCallback(() => {
     if (!containerRef.current) return;
@@ -230,7 +244,6 @@ const ProductDetail = () => {
     if (product && product.inStock) {
       try {
         setIsAdding(true);
-        // pass sale fields so cart/checkout can show discounted price
         await addToCart(
           {
             id: product.id,
@@ -258,16 +271,63 @@ const ProductDetail = () => {
   const incrementQuantity = () => setQuantity((prev) => prev + 1);
   const decrementQuantity = () => setQuantity((prev) => Math.max(1, prev - 1));
 
-  if (!product) {
+  // ---------- Loading ----------
+  if (isProductLoading) {
     return (
-      <div className="py-8">
-        <div className="text-center">
-          <p className="text-gray-500">Loading product details...</p>
+      <div className="py-12">
+        <Helmet>
+          <title>Loading… - Django Electro Store</title>
+        </Helmet>
+        <div className="text-center text-gray-500">
+          Loading product details...
         </div>
       </div>
     );
   }
 
+  // ---------- Inline Not Found (same page, no redirect) ----------
+  if (notFound) {
+    return (
+      <div className="py-16">
+        <Helmet>
+          <title>Product Not Found - Django Electro Store</title>
+          <meta name="robots" content="noindex" />
+        </Helmet>
+
+        <div className="max-w-xl mx-auto text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-red-50 text-red-600 mb-4 border border-red-100">
+            <PackageX className="w-7 h-7" />
+          </div>
+
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+            Product not found
+          </h1>
+          <p className="mt-2 text-gray-600">
+            The product you’re looking for may have been removed or is
+            temporarily unavailable.
+          </p>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Button
+              onClick={() => navigate(-1)}
+              variant="outline"
+              className="border-gray-300 text-gray-800 hover:bg-gray-100"
+            >
+              Go Back
+            </Button>
+
+            <Link to="/categories">
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                Browse Categories
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Normal Product Detail ----------
   const hasSale =
     product.sale_price != null &&
     toNum(product.sale_price) < toNum(product.price);
@@ -498,6 +558,9 @@ const ProductDetail = () => {
           </div>
         )}
       </section>
+
+      {/* ---------- Reviews ---------- */}
+      <ProductReviews productId={productId} productName={product.name} />
     </div>
   );
 };

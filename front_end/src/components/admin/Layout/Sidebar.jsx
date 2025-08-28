@@ -4,10 +4,10 @@ import {
   Package,
   ShoppingCart,
   Users,
-  FolderOpen,
+  Tags,
   LogOut,
   BadgeCheck,
-  Folder,
+  CircleDollarSign,
 } from "lucide-react";
 import { Button } from "@/components/admin/ui/button";
 import { useAdminAuth as useAuth } from "@/contexts/AdminAuth";
@@ -15,10 +15,10 @@ import { useAdminAuth as useAuth } from "@/contexts/AdminAuth";
 const navigation = [
   { name: "Products", href: "/admin/products", icon: Package },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
-  { name: "Categories", href: "/admin/categories", icon: FolderOpen },
+  { name: "Categories", href: "/admin/categories", icon: Tags },
   { name: "Users", href: "/admin/users", icon: Users },
   { name: "Coupons", href: "/admin/coupons", icon: BadgeCheck },
-  { name: "FlashSale", href: "/admin/flash-sale", icon: FolderOpen },
+  { name: "FlashSale", href: "/admin/flash-sale", icon: CircleDollarSign },
 ];
 
 export function Sidebar() {

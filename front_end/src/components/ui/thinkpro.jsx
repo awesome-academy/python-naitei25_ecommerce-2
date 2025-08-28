@@ -5,32 +5,32 @@ import { ThumbsUp, Heart, ShieldCheck, Clock, Users } from "lucide-react";
 const TABS = [
   {
     key: "hands-on",
-    title: "Trải nghiệm tận tay",
-    desc: "Trưng bày số lượng lớn sản phẩm để bạn có thể trực tiếp trải nghiệm cùng các phần mềm và công cụ cài sẵn.",
+    title: "Hands-on Experience",
+    desc: "A large number of products are on display so you can directly experience them along with pre-installed software and tools.",
     bg: "#2030E2", // blue
     image: "https://thinkpro.vn/usp-1.png",
     icon: ThumbsUp,
   },
   {
     key: "care",
-    title: "Tư vấn tận tâm",
-    desc: "Đội ngũ tư vấn bài bản, luôn đặt lợi ích khách hàng lên hàng đầu để chọn được sản phẩm phù hợp nhất.",
+    title: "Dedicated Consultation",
+    desc: "A well-trained consulting team that always prioritizes customer benefits to help you choose the most suitable product.",
     bg: "#C026D3", // purple
     image: "https://thinkpro.vn/usp-2.png",
     icon: Heart,
   },
   {
     key: "service-center",
-    title: "Trung tâm khách hàng",
-    desc: "Bảo vệ quyền lợi khách hàng và hành động kịp thời để bạn luôn cảm thấy thoải mái và an tâm.",
+    title: "Customer Service Center",
+    desc: "Protecting customer rights and acting promptly so you always feel comfortable and secure.",
     bg: "#16A34A", // green
     image: "https://thinkpro.vn/usp-3.png",
     icon: ShieldCheck,
   },
   {
     key: "support-24h",
-    title: "Phục vụ 24 giờ",
-    desc: "Sẵn sàng hỗ trợ tới 24 giờ mỗi ngày qua các kênh online và offline, đáp ứng nhanh chóng.",
+    title: "24-Hour Support",
+    desc: "Ready to assist 24 hours a day through online and offline channels, responding quickly.",
     bg: "#9A4A0B", // warm brown
     image: "https://thinkpro.vn/usp-4.png",
     icon: Clock,
@@ -38,7 +38,7 @@ const TABS = [
   {
     key: "onward",
     title: "Django Onward",
-    desc: "Thành viên Django Project Intern – nguyên tắc hoạt động: Khách hàng là trung tâm, bug là bạn thân.",
+    desc: "A member of the Django Project Intern – operating principle: Customers are the center, bugs are best friends.",
     bg: "#0B1434", // deep navy
     image: "https://thinkpro.vn/usp-5.png",
     icon: Users,

@@ -140,13 +140,13 @@ const Header = () => {
   // ✅ Notices dùng react-icons
   const notices = useMemo(
     () => [
-      { icon: <FaShippingFast />, text: "Giao hàng nhanh tận nơi" },
-      { icon: <FaCheckCircle />, text: "Sản phẩm chính hãng" },
-      { icon: <FaTruck />, text: "Miễn phí giao hàng trong nước" },
-      { icon: <FiShield />, text: "Thanh toán an toàn, bảo mật" },
+      { icon: <FaShippingFast />, text: "Fast delivery to your doorstep" },
+      { icon: <FaCheckCircle />, text: "Genuine products" },
+      { icon: <FaTruck />, text: "Free domestic shipping" },
+      { icon: <FiShield />, text: "Secure and safe payment" },
       { icon: <FaPhoneAlt />, text: "Hotline: 123456789" },
-      { icon: <FaGift />, text: "Khuyến mãi hấp dẫn mỗi ngày" },
-      { icon: <FaUndo />, text: "Đổi trả dễ dàng trong 7 ngày" },
+      { icon: <FaGift />, text: "Exciting daily promotions" },
+      { icon: <FaUndo />, text: "Easy returns within 7 days" },
     ],
     []
   );
