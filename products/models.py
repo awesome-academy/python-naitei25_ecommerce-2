@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from django.conf import settings
+from django.core.validators import MaxValueValidator
+from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Avg
 
 from core.constants import DecimalSettings
 from core.constants import FieldLengths
@@ -72,3 +76,66 @@ class Product(BaseModel):
     @property
     def formatted_price(self):
         return f"{self.price:,.2f} VND"
+
+    @property
+    def average_rating(self):
+        avg = self.reviews.aggregate(avg_rating=Avg('rating'))['avg_rating']
+        return round(avg, 1) if avg else 0.0
+
+    @property
+    def total_reviews(self):
+        return self.reviews.count()
+
+
+class ProductReview(BaseModel):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='product_reviews',
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='reviews',
+    )
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text='Rating from 1 to 5 stars',
+    )
+    title = models.CharField(
+        max_length=FieldLengths.DEFAULT,
+        blank=True,
+        help_text='Optional review title',
+    )
+    comment = models.TextField(
+        blank=True,
+        help_text='Optional review comment',
+    )
+    is_verified_purchase = models.BooleanField(
+        default=False,
+        help_text='Whether this review is from a verified purchase',
+    )
+
+    class Meta:
+        db_table = 'product_reviews'
+        indexes = [
+            models.Index(fields=['product'], name='idx_reviews_product_id'),
+            models.Index(fields=['user'], name='idx_reviews_user_id'),
+            models.Index(fields=['rating'], name='idx_reviews_rating'),
+            models.Index(fields=['created_at'], name='idx_reviews_created_at'),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.product.name} ({self.rating}/5)"
+
+    def save(self, *args, **kwargs):
+        # Check if user has purchased this product to set verified_purchase
+        if not self.pk:  # Only on creation
+            from orders.models import OrderItem
+            has_purchased = OrderItem.objects.filter(
+                order__user=self.user,
+                product=self.product,
+                order__order_status__in=['DELIVERED', 'CONFIRMED'],
+            ).exists()
+            self.is_verified_purchase = has_purchased
+        super().save(*args, **kwargs)
