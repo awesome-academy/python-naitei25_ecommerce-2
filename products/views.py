@@ -1,31 +1,41 @@
 """Views for products app."""
 from __future__ import annotations
 
-from django.contrib.postgres.search import SearchQuery
-from django.contrib.postgres.search import SearchRank
-from django.contrib.postgres.search import SearchVector
+from django.contrib.postgres.search import (
+    SearchQuery,
+    SearchRank,
+    SearchVector
+)
 from django.db.models import Q
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework import filters
-from rest_framework import generics, permissions, status
+from rest_framework import (
+    filters,
+    generics,
+    permissions,
+    status
+)
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser
 
 from cart.models import Cart
 from orders.models import OrderItem
-from products.models import Category
-from products.models import Product
-from products.models import ProductReview
-from products.serializers import AdminProductSerializer
-from products.serializers import CategorySerializer
-from products.serializers import ProductDetailSerializer
-from products.serializers import ProductInstantSerializer
-from products.serializers import ProductListSerializer
-from products.serializers import ProductReviewListSerializer
-from products.serializers import ProductReviewSerializer
+from products.models import (
+    Category,
+    Product,
+    ProductReview
+)
+from products.serializers import (
+    AdminProductSerializer,
+    CategorySerializer,
+    ProductDetailSerializer,
+    ProductInstantSerializer,
+    ProductListSerializer,
+    ProductReviewListSerializer,
+    ProductReviewSerializer
+)
 
 
 class CategoryListAPIView(generics.ListAPIView):

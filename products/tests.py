@@ -817,13 +817,13 @@ class ProductReviewAPITests(TestCase):
             is_in_stock=True,
         )
 
-        _ = ProductReview.objects.create(
+        review1 = ProductReview.objects.create(
             user=self.user1,
             product=self.product,
             rating=4,
             title='Review 1',
         )
-        _ = ProductReview.objects.create(
+        review2 = ProductReview.objects.create(
             user=self.user1,
             product=product2,
             rating=5,

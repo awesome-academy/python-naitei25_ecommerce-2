@@ -20,8 +20,7 @@ class CategorySerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def validate_name(self, value):
-        if self.instance is None \
-                and Category.objects.filter(name=value).exists():
+        if self.instance is None and Category.objects.filter(name=value).exists():
             raise serializers.ValidationError(
                 _('Category with this name already exists.'),
             )
