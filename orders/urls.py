@@ -10,7 +10,8 @@ from .views import (
     AdminFlashSaleListCreateAPIView,
     AdminFlashSaleDetailAPIView,
     ActiveFlashSaleListAPIView,
-    FlashSaleProductListAPIView
+    FlashSaleProductListAPIView,
+    UpcomingFlashSaleListAPIView
 )
 
 app_name = 'orders'
@@ -27,4 +28,5 @@ urlpatterns = [
     path('api/admin/flash-sales/<int:pk>/', AdminFlashSaleDetailAPIView.as_view(), name='admin_flash_sale_detail'),
     path('api/flash-sales/active/', ActiveFlashSaleListAPIView.as_view(), name='active_flash_sales'),
     path('api/flash-sales/<int:pk>/products/', FlashSaleProductListAPIView.as_view(), name='flash_sale_products'),
+    path('api/flash-sales/upcoming/', UpcomingFlashSaleListAPIView.as_view(), name='upcoming_flash_sales'), 
 ]

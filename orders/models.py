@@ -10,10 +10,14 @@ from core.constants import DecimalSettings
 from core.constants import FieldLengths
 from core.constants import OrderStatus
 from core.constants import PaymentMethod
-from core.constants import CancelReason
+from core.constants import CancelReason, RejectReason
 from core.models import BaseModel
 from products.models import Product
 from decimal import Decimal
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from .services.email_service import OrderEmailService
 
 
 class Coupon(BaseModel):
@@ -105,9 +109,23 @@ class Order(BaseModel):
         choices=CancelReason.choices(),
         null=True,
         blank=True,
+       help_text=_("Reason for cancellation by customer")
+    )
+    reject_reason = models.CharField(
+        max_length=FieldLengths.DEFAULT,
+        choices=RejectReason.choices(),
+        null=True,
+        blank=True,
+        help_text=_("Reason for rejection by admin")
     )
     customer_name = models.CharField(max_length=FieldLengths.DEFAULT)
     customer_phone = models.CharField(max_length=FieldLengths.PHONE)
+    customer_email = models.EmailField(
+        max_length=FieldLengths.EMAIL,
+        blank=True,
+        null=True,
+        help_text=_("Customer email for guest orders")
+    )
     customer_address = models.TextField()
     total_amount = models.DecimalField(
         max_digits=DecimalSettings.PRICE_MAX_DIGITS,
@@ -254,3 +272,55 @@ class FlashSale(BaseModel):
             }
             for product in self.products.all()
         ]
+
+
+@receiver(post_save, sender=Order)
+def send_order_status_email(sender, instance, created, **kwargs):
+    """Send email when order status changes"""
+    if not created:
+        # Get the original order from database to compare status changes
+        try:
+            original_order = Order.objects.get(pk=instance.pk)
+        except Order.DoesNotExist:
+            return
+            
+        # Check if status changed
+        if original_order.order_status != instance.order_status:
+            user_email = instance.user.email if instance.user else instance.customer_email
+            if not user_email:
+                return
+                
+            currency = getattr(settings, "CURRENCY_CODE", "USD")
+            context = {
+                'customer_name': instance.customer_name,
+                'order_id': instance.id,
+                'order_date': instance.ordered_at.strftime("%Y-%m-%d %H:%M"),
+                'total_amount': f"{instance.final_amount:.2f}",
+                'currency': currency,
+                'shipping_address': instance.customer_address,
+            }
+            
+            # Send appropriate email based on status change
+            if instance.order_status == OrderStatus.CANCELLED.value:
+                context['cancel_reason'] = instance.get_cancel_reason_display()
+                context['refund_amount'] = f"{instance.final_amount:.2f}"
+                OrderEmailService.send_order_cancelled_email(instance, user_email, context)
+                
+            elif instance.order_status == OrderStatus.DELIVERED.value:
+                context['delivery_date'] = timezone.now().strftime("%Y-%m-%d %H:%M")
+                OrderEmailService.send_order_delivered_email(instance, user_email, context)
+    
+    # Send order placed email for new orders
+    elif created and instance.order_status == OrderStatus.PENDING.value:
+        user_email = instance.user.email if instance.user else instance.customer_email
+        if user_email:
+            currency = getattr(settings, "CURRENCY_CODE", "USD")
+            context = {
+                'customer_name': instance.customer_name,
+                'order_id': instance.id,
+                'order_date': instance.ordered_at.strftime("%Y-%m-%d %H:%M"),
+                'total_amount': f"{instance.final_amount:.2f}",
+                'currency': currency,
+                'shipping_address': instance.customer_address,
+            }
+            OrderEmailService.send_order_placed_email(instance, user_email, context)

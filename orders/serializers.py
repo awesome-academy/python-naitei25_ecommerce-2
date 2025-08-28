@@ -3,7 +3,7 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from .models import Order, OrderItem, Coupon
-from core.constants import OrderStatus, CancelReason, FieldLengths, DecimalSettings, FlashSaleSettings, FlashSaleStatus
+from core.constants import OrderStatus, CancelReason, FieldLengths, DecimalSettings, FlashSaleSettings, FlashSaleStatus, RejectReason
 from .models import FlashSale
 from products.serializers import ProductInstantSerializer
 from django.utils import timezone
@@ -96,6 +96,12 @@ class OrderSerializer(serializers.ModelSerializer):
     user_email = serializers.SerializerMethodField()
     coupon_code = serializers.CharField(write_only=True, required=False, allow_blank=True)
     coupon_info = serializers.SerializerMethodField()
+    reject_reason = serializers.ChoiceField(
+        choices=RejectReason.choices(),
+        required=False,
+        allow_blank=True,
+        write_only=True
+    )
 
     class Meta:
         model = Order
@@ -113,6 +119,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'ordered_at',
             'items',
             'cancel_reason',
+            'reject_reason',
             'can_cancel',
             'coupon',
             'coupon_code',
@@ -126,6 +133,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'discount_amount',
             'final_amount',
             'can_cancel',
+            'reject_reason',
             'user_email',
             'coupon',
             'coupon_info',
