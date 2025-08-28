@@ -133,7 +133,6 @@ class OrderSerializer(serializers.ModelSerializer):
             'discount_amount',
             'final_amount',
             'can_cancel',
-            'reject_reason',
             'user_email',
             'coupon',
             'coupon_info',

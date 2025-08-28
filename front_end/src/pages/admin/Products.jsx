@@ -505,6 +505,11 @@ export function Products() {
                     <BadgeCheck className="w-3 h-3" />
                     {product.is_in_stock ? "In stock" : "Out of stock"}
                   </span>
+                  {product.is_deleted && (
+                    <span className="ml-2 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border bg-gray-100 text-gray-600 border-gray-300">
+                      Soft Deleted
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex gap-2 pt-3">
@@ -552,21 +557,32 @@ export function Products() {
                   </ConfirmButton>
 
                   {/* Confirm: Delete product */}
-                  <ConfirmButton
-                    title="Delete product?"
-                    description={`Are you sure you want to delete "${product.name}"? This cannot be undone.`}
-                    confirmText="Delete"
-                    onConfirm={() => deleteProduct(product.id)}
-                    asChild
-                  >
+                  {product.is_deleted ? (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-red-300 text-red-700 hover:bg-red-50"
+                      disabled
+                      className="border-red-300 text-red-700 opacity-50 cursor-not-allowed"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
-                  </ConfirmButton>
+                  ) : (
+                    <ConfirmButton
+                      title="Delete product?"
+                      description={`Are you sure you want to delete "${product.name}"? This cannot be undone.`}
+                      confirmText="Delete"
+                      onConfirm={() => deleteProduct(product.id)}
+                      asChild
+                    >
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </ConfirmButton>
+                  )}
                 </div>
               </div>
             </motion.div>

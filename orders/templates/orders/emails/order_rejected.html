@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Order Rejected</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        color: #333;
+        background-color: #f9f9f9;
+        padding: 20px;
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: #fff;
+        padding: 25px;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      }
+      h2 {
+        color: #c0392b;
+      }
+      .footer {
+        margin-top: 30px;
+        font-size: 14px;
+        color: #777;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Order #{{ order_id }} – Rejected</h2>
+
+      <p>Dear <strong>{{ customer_name }}</strong>,</p>
+
+      <p>
+        We’re sorry to inform you that your order
+        <strong>#{{ order_id }}</strong> could not be processed and has been
+        <strong>rejected</strong>.
+      </p>
+
+      <p><strong>Reason:</strong> {{ reject_reason }}</p>
+
+      <p>
+        If you believe this was a mistake or would like further clarification,
+        please don’t hesitate to reach out to our support team. We’ll be happy
+        to assist you.
+      </p>
+
+      <p>Thank you for your understanding.</p>
+
+      <div class="footer">
+        Best regards,<br />
+        <em>The {{ currency }} Store Support Team</em>
+      </div>
+    </div>
+  </body>
+</html>

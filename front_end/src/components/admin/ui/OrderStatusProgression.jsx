@@ -95,9 +95,7 @@ export const OrderStatusProgression = ({
   };
 
   const canProgress = !!getNextStatus();
-  const canReject = !["DELIVERED", "CANCELLED", "REJECTED"].includes(
-    String(currentStatus || "")
-  );
+  const canReject = currentStatus === "PENDING";
 
   const currentStatusObj = STATUS_PROGRESSION.find(
     (s) => s.key === currentStatus

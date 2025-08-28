@@ -1,3 +1,4 @@
+// src/pages/Home.jsx
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet";
@@ -7,9 +8,15 @@ import ProductCard from "@/components/products/ProductCard";
 import FlashSaleSpotlight from "@/components/flashsale/FlashSaleSpotlight";
 import { useToast } from "@/components/ui/use-toast";
 import { MessageCircle, Mail, Phone, X } from "lucide-react";
-
-// NEW: the separate USP component
 import UspShowcase from "@/components/ui/thinkpro";
+import { Spinner } from "@/components/ui/spinner";
+
+const CARD_WIDTH = 300;
+const CONTAINER_GAP = 20; // approximate gap-4 (16px) -> a bit larger to be safe
+const EFFECTIVE_CARD = CARD_WIDTH + CONTAINER_GAP;
+
+const CACHE_KEY = "home_featured_cache_v1";
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 const Home = () => {
   const [featuredProducts, setFeaturedProducts] = useState([]);
@@ -44,9 +51,8 @@ const Home = () => {
   /* ====== Featured slider controls ====== */
   const scrollPrev = useCallback(() => {
     if (!containerRef.current) return;
-    const cardWidth = 300;
     setCurrentTransform((prev) => {
-      const next = prev + cardWidth;
+      const next = Math.min(prev + EFFECTIVE_CARD, 0);
       containerRef.current.style.transform = `translateX(${next}px)`;
       return next;
     });
@@ -54,13 +60,18 @@ const Home = () => {
 
   const scrollNext = useCallback(() => {
     if (!containerRef.current) return;
-    const cardWidth = 300;
     setCurrentTransform((prev) => {
-      const next = prev - cardWidth;
-      containerRef.current.style.transform = `translateX(${next}px)`;
-      return next;
+      const resetPoint = -(featuredProducts.length * EFFECTIVE_CARD);
+      const next = prev - EFFECTIVE_CARD;
+      if (next <= resetPoint) {
+        containerRef.current.style.transform = `translateX(0px)`;
+        return 0;
+      } else {
+        containerRef.current.style.transform = `translateX(${next}px)`;
+        return next;
+      }
     });
-  }, []);
+  }, [featuredProducts.length]);
 
   // Auto-scroll animation
   useEffect(() => {
@@ -70,7 +81,7 @@ const Home = () => {
       if (containerRef.current && !isPaused) {
         setCurrentTransform((prev) => {
           const newTransform = prev - 1;
-          const resetPoint = -(featuredProducts.length * 300);
+          const resetPoint = -(featuredProducts.length * EFFECTIVE_CARD);
           if (newTransform <= resetPoint) {
             containerRef.current.style.transform = `translateX(0px)`;
             return 0;
@@ -88,26 +99,75 @@ const Home = () => {
       animationRef.current && cancelAnimationFrame(animationRef.current);
   }, [featuredProducts, isPaused]);
 
-  // Load featured products
+  // Reset transform when products change
   useEffect(() => {
+    setCurrentTransform(0);
+    if (containerRef.current) {
+      containerRef.current.style.transform = "translateX(0px)";
+    }
+  }, [featuredProducts]);
+
+  // LocalStorage helpers
+  const loadCache = () => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj?.timestamp || !Array.isArray(obj?.products)) return null;
+      const fresh = Date.now() - obj.timestamp < CACHE_TTL;
+      return fresh ? obj : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCache = (products) => {
+    try {
+      localStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({ products, timestamp: Date.now() })
+      );
+    } catch {
+      /* ignore quota errors */
+    }
+  };
+
+  // Load featured products (with localStorage cache)
+  useEffect(() => {
+    const cached = loadCache();
+    if (cached) {
+      setFeaturedProducts(cached.products);
+      setIsLoading(false);
+      return;
+    }
+
+    const abort = new AbortController();
     const fetchFeaturedProducts = async () => {
       try {
-        const response = await fetch(`${apiUrl}/api/products`);
+        // NOTE: trailing slash to avoid 404 if backend expects it
+        const response = await fetch(`${apiUrl}/api/products/`, {
+          signal: abort.signal,
+        });
         if (!response.ok) throw new Error("Failed to fetch featured products");
         const data = await response.json();
         const products = data.results || data;
         setFeaturedProducts(products);
+        saveCache(products);
       } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error.message || "Could not load featured products.",
-        });
+        if (error.name !== "AbortError") {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: error.message || "Could not load featured products.",
+          });
+        }
       } finally {
         setIsLoading(false);
       }
     };
     fetchFeaturedProducts();
+
+    return () => abort.abort();
   }, [apiUrl, toast]);
 
   return (
@@ -160,8 +220,6 @@ const Home = () => {
         </div>
       </motion.section>
 
-      {/* NEW: Animated USP component */}
-
       {/* Featured Products */}
       <section>
         <motion.div
@@ -192,8 +250,9 @@ const Home = () => {
           </div>
 
           {isLoading ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500">Loading featured products...</p>
+            <div className="flex flex-col items-center justify-center py-12">
+              <Spinner className="h-10 w-10 mb-4" />
+              <p className="text-gray-500">Loading featured products…</p>
             </div>
           ) : featuredProducts.length > 0 ? (
             <div className="relative">
@@ -207,7 +266,12 @@ const Home = () => {
                 <div
                   ref={containerRef}
                   className="flex gap-4 transition-transform duration-300 ease-linear"
-                  style={{ width: `${featuredProducts.length * 2 * 320}px` }}
+                  style={{
+                    width: `${
+                      Math.max(featuredProducts.length * 2, 1) *
+                      (CARD_WIDTH + CONTAINER_GAP)
+                    }px`,
+                  }}
                 >
                   {[...featuredProducts, ...featuredProducts].map(
                     (product, index) => (
@@ -235,7 +299,10 @@ const Home = () => {
           )}
         </motion.div>
       </section>
+
+      {/* USP */}
       <UspShowcase />
+
       {/* Contact (Email + Phone) */}
       <button
         type="button"

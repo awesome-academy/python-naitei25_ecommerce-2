@@ -143,9 +143,11 @@ class EmailTemplates:
     ORDER_PLACED = 'orders/emails/order_placed.html'
     ORDER_CANCELLED = 'orders/emails/order_cancelled.html'
     ORDER_DELIVERED = 'orders/emails/order_delivered.html'
+    ORDER_REJECTED = 'orders/emails/order_rejected.html'
 
 class EmailSubjects:
     """Constants for email subjects"""
     ORDER_PLACED = _('Order Confirmation - #{order_id}')
     ORDER_CANCELLED = _('Order Cancelled - #{order_id}')
     ORDER_DELIVERED = _('Order Delivered - #{order_id}')
+    ORDER_REJECTED = _('Order Rejected - #{order_id}')
