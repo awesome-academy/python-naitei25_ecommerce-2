@@ -9,6 +9,8 @@ from rest_framework.response import Response
 from django.utils.translation import gettext_lazy as _
 from rest_framework import filters
 from django.contrib.postgres.search import SearchVector, SearchQuery, SearchRank
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAdminUser
 
 
 
@@ -67,20 +69,40 @@ class AdminProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AdminProductSerializer
     permission_classes = [permissions.IsAdminUser]
 
+    def get_queryset(self):
+        return Product.objects.filter(is_deleted=False)
+    
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+
         if OrderItem.objects.filter(product=instance).exists():
+            instance.soft_delete()
             return Response(
-                {"detail": _("The product cannot be deleted because it is in an order.")},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    "detail": _("Product has been marked as deleted since it exists in orders."),
+                    "is_soft_deleted": True
+                },
+                status=status.HTTP_200_OK
             )
+            
         if Cart.objects.filter(items__contains=[{"product_id": instance.id}]).exists():
+            instance.soft_delete()
             return Response(
-                {"detail": _("The product cannot be deleted because it is in the shopping cart.")},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    "detail": _("Product has been marked as deleted since it exists in shopping carts."),
+                    "is_soft_deleted": True
+                },
+                status=status.HTTP_200_OK
             )
+            
         self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {
+                "detail": _("Product has been permanently deleted."),
+                "is_soft_deleted": False
+            },
+            status=status.HTTP_204_NO_CONTENT
+        )
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -101,7 +123,7 @@ class ProductListAPIView(generics.ListAPIView):
     def get_queryset(self):
         queryset = Product.objects.select_related(
             'category',
-        ).filter(is_in_stock=True)
+        ).filter(is_in_stock=True, is_deleted=False)
 
         # Filter by category
         category_id = self.request.query_params.get('category')
@@ -153,6 +175,9 @@ class ProductDetailAPIView(generics.RetrieveAPIView):
     serializer_class = ProductDetailSerializer
     lookup_field = 'pk'
 
+    def get_queryset(self):
+        return Product.objects.select_related('category').filter(is_deleted=False)
+
 
 class InstantProductSearchAPIView(generics.ListAPIView):
     serializer_class = ProductInstantSerializer
@@ -170,7 +195,7 @@ class InstantProductSearchAPIView(generics.ListAPIView):
         query = SearchQuery(q, config="simple")
 
         return (
-            Product.objects.filter(is_in_stock=True)
+            Product.objects.filter(is_in_stock=True, is_deleted=False)
             .annotate(rank=SearchRank(vector, query))
             .filter(rank__gt=0)
             .order_by("-rank", "-id")  

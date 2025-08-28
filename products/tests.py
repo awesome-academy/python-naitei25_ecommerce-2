@@ -11,10 +11,11 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APITestCase
 
-from orders.models import FlashSale
+from orders.models import FlashSale, Order, OrderItem
 from products.models import Category, Product
+from cart.models import Cart
 
 
 def _extract_results(data):
@@ -390,3 +391,182 @@ class ProductsFlashSalePricingTests(ProductsViewsTests):
         expected_sale = self._q(Decimal("19.99") * Decimal("0.75"))
         self.assertEqual(data["sale_price"], expected_sale)
         self.assertEqual(data["discount_percent"], 25.0)
+
+
+class ProductsSoftDeleteTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.admin = User.objects.create_user(
+            email="internpython@gmail.com", password="@dmin123", is_staff=True
+        )
+        self.user = User.objects.create_user(
+            email="huy@gmail.com", password="huy", is_staff=False
+        )
+
+        self.cat = Category.objects.create(name="Test Category")
+        self.product = Product.objects.create(
+            name="Test Product",
+            description="Test",
+            price=Decimal("10.00"),
+            category=self.cat,
+            stock_quantity=5,
+            is_in_stock=True,
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(self.admin)
+    
+    def test_create_product(self):
+        """Admin có thể tạo sản phẩm mới"""
+        url = reverse("products:admin_product_list_create")
+        payload = {
+            "name": "New Product",
+            "description": "Brand new product",
+            "price": "99.99",
+            "image_urls": ["https://example.com/img1.jpg"],
+            "category": self.cat.id,
+            "specification": [{"key": "Color", "value": "Black"}],
+            "is_in_stock": True,
+            "stock_quantity": 10,
+        }
+        resp = self.client.post(url, data=payload, format="json")
+
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        data = resp.json()
+        self.assertEqual(data["name"], "New Product")
+        self.assertEqual(data["price"], "99.99")
+        self.assertEqual(data["category"], self.cat.id)
+        self.assertEqual(data["stock_quantity"], 10)
+    
+    def test_update_product(self):
+        """Admin có thể cập nhật product"""
+        url = reverse("products:admin_product_detail", args=[self.product.id])
+        payload = {
+            "name": "Updated Product",
+            "description": "Updated description",
+            "price": "15.50",
+            "stock_quantity": 20,
+            "is_in_stock": True,
+            "category": self.cat.id,
+        }
+        resp = self.client.put(url, data=payload, format="json")
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+        self.assertEqual(data["name"], "Updated Product")
+        self.assertEqual(data["price"], "15.50")
+        self.assertEqual(data["stock_quantity"], 20)
+
+        # check DB
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.name, "Updated Product")
+        self.assertEqual(str(self.product.price), "15.50")
+        self.assertEqual(self.product.stock_quantity, 20)
+
+    
+    def test_retrieve_product(self):
+        """Admin có thể xem chi tiết product"""
+        url = reverse("products:admin_product_detail", args=[self.product.id])
+        resp = self.client.get(url)
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+        self.assertEqual(data["id"], self.product.id)
+        self.assertEqual(data["name"], "Test Product")
+        self.assertEqual(data["price"], "10.00")
+
+    def test_soft_delete_with_real_orderitem(self):
+        """Trường hợp thật: product nằm trong order -> soft delete"""
+        order = Order.objects.create(
+            user=self.user,
+            customer_name="Test User",
+            customer_phone="0123456789",
+            customer_address="123 Test Street",
+            total_amount=Decimal("0.00"),
+            discount_amount=Decimal("0.00"),
+            final_amount=Decimal("0.00"),
+        )
+        OrderItem.objects.create(
+            order=order,
+            product=self.product,
+            quantity=1,
+            price_at_order=self.product.price,
+        )
+
+        url = reverse("products:admin_product_detail", args=[self.product.id])
+        resp = self.client.delete(url)
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+        self.assertTrue(data["is_soft_deleted"])
+        prod = Product.objects.get(id=self.product.id)
+        self.assertTrue(prod.is_deleted)
+        self.assertIsNotNone(prod.deleted_at)
+
+    def test_soft_delete_with_mocked_orderitem(self):
+        """Trường hợp mock: giả lập product có trong order -> soft delete"""
+        url = reverse("products:admin_product_detail", args=[self.product.id])
+
+        with patch("products.views.OrderItem.objects.filter") as mock_filter:
+            mock_qs = MagicMock()
+            mock_qs.exists.return_value = True
+            mock_filter.return_value = mock_qs
+
+            resp = self.client.delete(url)
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+        self.assertTrue(data["is_soft_deleted"])
+        prod = Product.objects.get(id=self.product.id)
+        self.assertTrue(prod.is_deleted)
+        self.assertIsNotNone(prod.deleted_at)
+
+class AdminCategoryCRUDTestCase(APITestCase):
+    def setUp(self):
+        # Create admin user
+        User = get_user_model()
+        self.admin = User.objects.create_superuser(
+            email="internpython@gmail.com", password="@dmin123"
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.admin)
+
+        # URL endpoints
+        self.list_create_url = reverse("products:admin_category_list_create")
+        self.category = Category.objects.create(name="Phone")
+
+    def test_admin_can_list_categories(self):
+        response = self.client.get(self.list_create_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertGreaterEqual(len(response.data), 1)
+
+    def test_admin_can_create_category(self):
+        data = {"name": "Laptop"}
+        response = self.client.post(self.list_create_url, data, format="json")
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Category.objects.filter(name="Laptop").exists())
+
+    def test_admin_cannot_create_duplicate_category(self):
+        data = {"name": "Phone"}  # already exists
+        response = self.client.post(self.list_create_url, data, format="json")
+        self.assertEqual(response.status_code, 400)
+
+    def test_admin_can_retrieve_category(self):
+        url = reverse("products:admin_category_detail", args=[self.category.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["name"], self.category.name)
+
+    def test_admin_can_update_category(self):
+        url = reverse("products:admin_category_detail", args=[self.category.id])
+        data = {"name": "Smartphone"}
+        response = self.client.put(url, data, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.category.refresh_from_db()
+        self.assertEqual(self.category.name, "Smartphone")
+
+    def test_admin_can_delete_category(self):
+        url = reverse("products:admin_category_detail", args=[self.category.id])
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Category.objects.filter(id=self.category.id).exists())
