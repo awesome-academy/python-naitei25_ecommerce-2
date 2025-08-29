@@ -37,6 +37,10 @@ class OrderEmailService:
                 'delivered': {
                     'subject': EmailSubjects.ORDER_DELIVERED,
                     'template': EmailTemplates.ORDER_DELIVERED
+                },
+                'rejected': {   
+                    'subject': EmailSubjects.ORDER_REJECTED,
+                    'template': EmailTemplates.ORDER_REJECTED
                 }
             }
             

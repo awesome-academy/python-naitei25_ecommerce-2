@@ -46,6 +46,8 @@ class AdminProductSerializer(serializers.ModelSerializer):
             'category',
             'category_name',
             'specification',
+            'is_deleted', 
+            'deleted_at',
             'is_in_stock',
             'stock_quantity',
             'created_at',

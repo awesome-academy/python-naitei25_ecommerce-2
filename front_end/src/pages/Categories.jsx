@@ -8,8 +8,11 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import ProductCard from "@/components/products/ProductCard";
 import CategorySidebar from "@/components/categories/CategorySidebar";
+import { Spinner } from "@/components/ui/spinner";
 
 const DEBOUNCE_MS = 700;
+const CACHE_KEY = "categories_product_cache";
+const CACHE_TTL = 5 * 60 * 1000; // 5 phút
 
 const Categories = () => {
   const { categoryId } = useParams();
@@ -35,6 +38,40 @@ const Categories = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // cacheRef: { queryKey: { products, totalCount, nextUrl, timestamp } }
+  const cacheRef = useRef({});
+
+  // Load cache from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const now = Date.now();
+        // filter out expired cache
+        const validCache = {};
+        for (const [key, value] of Object.entries(parsed)) {
+          if (now - value.timestamp < CACHE_TTL) {
+            validCache[key] = value;
+          }
+        }
+        cacheRef.current = validCache;
+      }
+    } catch (err) {
+      console.error("Failed to parse cache:", err);
+    }
+  }, []);
+
+  // persist cache to localStorage whenever it changes
+  const persistCache = () => {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheRef.current));
+    } catch (err) {
+      console.error("Failed to save cache:", err);
+    }
+  };
+
+  // keep URL search param in sync
   useEffect(() => {
     const urlTerm = searchParams.get("search") || "";
     setSearchTerm(urlTerm);
@@ -44,12 +81,14 @@ const Categories = () => {
     setSelectedCategory(categoryId ? parseInt(categoryId, 10) : "");
   }, [categoryId]);
 
+  // debounce search term
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [searchTerm]);
 
+  // fetch categories
   useEffect(() => {
     const fetchCategories = async () => {
       setIsCategoriesLoading(true);
@@ -101,7 +140,22 @@ const Categories = () => {
     activeQueryRef.current = queryKey;
   }, [queryKey]);
 
+  // fetch products with caching + localStorage
   useEffect(() => {
+    const localKey = queryKey;
+
+    // check cache first
+    const cached = cacheRef.current[localKey];
+    const now = Date.now();
+    if (cached && now - cached.timestamp < CACHE_TTL) {
+      setProducts(cached.products);
+      setTotalCount(cached.totalCount);
+      setNextUrl(cached.nextUrl);
+      nextUrlRef.current = cached.nextUrl;
+      setIsProductsLoading(false);
+      return;
+    }
+
     const abort = new AbortController();
 
     if (loadMoreAbortRef.current) {
@@ -112,12 +166,10 @@ const Categories = () => {
     const fetchFirstPage = async () => {
       setIsProductsLoading(true);
       setPage(1);
-
       setProducts([]);
       setNextUrl(null);
       nextUrlRef.current = null;
 
-      const localKey = queryKey;
       try {
         const url = buildProductsUrl(1);
         const res = await fetch(url, { signal: abort.signal });
@@ -127,14 +179,24 @@ const Categories = () => {
         if (activeQueryRef.current !== localKey) return;
 
         const results = Array.isArray(data) ? data : data.results || [];
-        setProducts(results);
-        setTotalCount(
-          Array.isArray(data) ? results.length : data.count ?? results.length
-        );
-
+        const total = Array.isArray(data)
+          ? results.length
+          : data.count ?? results.length;
         const nxt = Array.isArray(data) ? null : data.next;
+
+        setProducts(results);
+        setTotalCount(total);
         setNextUrl(nxt);
         nextUrlRef.current = nxt;
+
+        // save to cache + persist
+        cacheRef.current[localKey] = {
+          products: results,
+          totalCount: total,
+          nextUrl: nxt,
+          timestamp: now,
+        };
+        persistCache();
       } catch (error) {
         if (error.name !== "AbortError") {
           if (activeQueryRef.current !== localKey) return;
@@ -157,7 +219,7 @@ const Categories = () => {
 
     fetchFirstPage();
     return () => abort.abort();
-  }, [queryKey]);
+  }, [queryKey, toast]);
 
   const loadMore = async () => {
     if (!nextUrlRef.current) return;
@@ -171,6 +233,7 @@ const Categories = () => {
 
     const localKey = activeQueryRef.current;
     const currentNext = nextUrlRef.current;
+    const now = Date.now();
 
     try {
       const res = await fetch(currentNext, { signal: controller.signal });
@@ -180,12 +243,22 @@ const Categories = () => {
       if (activeQueryRef.current !== localKey) return;
 
       const results = data.results || [];
-      setProducts((prev) => [...prev, ...results]);
+      const updatedProducts = [...products, ...results];
+      setProducts(updatedProducts);
 
       setNextUrl(data.next);
       nextUrlRef.current = data.next;
       setPage((p) => p + 1);
       setTotalCount(data.count ?? totalCount);
+
+      // update cache + persist
+      cacheRef.current[localKey] = {
+        products: updatedProducts,
+        totalCount: data.count ?? totalCount,
+        nextUrl: data.next,
+        timestamp: now,
+      };
+      persistCache();
     } catch (error) {
       if (error.name !== "AbortError") {
         toast({
@@ -229,9 +302,10 @@ const Categories = () => {
         />
       </Helmet>
 
-      {(isCategoriesLoading || isProductsLoading) && (
+      {/* Overlay khi loading categories */}
+      {isCategoriesLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/60">
-          <div className="animate-spin h-12 w-12 rounded-full border-t-4 border-blue-600" />
+          <Spinner className="h-12 w-12" />
         </div>
       )}
 
@@ -245,6 +319,7 @@ const Categories = () => {
         </div>
 
         <div className="flex-1">
+          {/* search box */}
           <div className="mb-6">
             <div className="relative max-w-md">
               <Input
@@ -258,6 +333,7 @@ const Categories = () => {
             </div>
           </div>
 
+          {/* title */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -273,7 +349,13 @@ const Categories = () => {
             </p>
           </motion.div>
 
-          {products.length > 0 ? (
+          {/* spinner khi chưa có products */}
+          {isProductsLoading && products.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Spinner className="h-10 w-10 mb-4" />
+              <p className="text-gray-600">Loading products…</p>
+            </div>
+          ) : products.length > 0 ? (
             <>
               <motion.div
                 className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
@@ -298,9 +380,15 @@ const Categories = () => {
                   <button
                     onClick={loadMore}
                     disabled={isLoadingMore || isProductsLoading}
-                    className="px-6 py-2 rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60"
+                    className="px-6 py-2 rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60 flex items-center gap-2"
                   >
-                    {isLoadingMore ? "Loading..." : "Load more"}
+                    {isLoadingMore ? (
+                      <>
+                        <Spinner className="h-5 w-5" /> Loading…
+                      </>
+                    ) : (
+                      "Load more"
+                    )}
                   </button>
                 </div>
               )}

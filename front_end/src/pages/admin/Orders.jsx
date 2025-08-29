@@ -117,11 +117,12 @@ export function Orders() {
     setIsLoadingMore(false);
   };
 
-  const handleStatusUpdate = async (orderId, newStatus) => {
+  const handleStatusUpdate = async (orderId, newStatus, extra = {}) => {
     setStatusLoadingIds((prev) => [...prev, orderId]);
 
     const result = await api.patch(`/admin/orders/${orderId}/`, {
       order_status: newStatus,
+      ...extra,
     });
 
     if (result.success) {
@@ -505,7 +506,7 @@ export function Orders() {
                           <span className="text-gray-600">Payment Method:</span>{" "}
                           {selectedOrder.payment_method}
                         </p>
-                        <p className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                           <span className="text-gray-600">Status:</span>
                           <span
                             className={`px-2 py-1 rounded-full text-xs ${
@@ -515,7 +516,14 @@ export function Orders() {
                           >
                             {selectedOrder.order_status}
                           </span>
-                        </p>
+                        </div>
+
+                        {selectedOrder.order_status === "REJECTED" &&
+                          selectedOrder.reject_reason && (
+                            <div className="mt-1 text-sm text-red-600">
+                              Rejected because: {selectedOrder.reject_reason}
+                            </div>
+                          )}
                       </div>
                     </div>
                   </div>
