@@ -1,39 +1,81 @@
-# Core Django
+# ---- Core Django ----
 Django==5.2.4
 asgiref==3.9.1
 sqlparse==0.5.3
+python-dotenv==1.1.1
 
-# Django Extensions
-django-cors-headers==4.7.0
+# ---- WSGI / Static Files ----
+gunicorn==22.0.0
+whitenoise>=6.7.0
+
+# ---- Django REST Framework & Auth ----
 djangorestframework==3.16.0
-djangorestframework_simplejwt==5.5.1
+djangorestframework-simplejwt==5.5.1
+django-cors-headers==4.7.0
+dj-rest-auth>=6.0.0
+django-allauth>=65.0.0
 
-# PostgreSQL
+# ---- Database ----
 psycopg2-binary==2.9.10
+dj-database-url==2.2.0
 
-# API Docs
+# ---- Celery & Task Queue ----
+celery==5.4.0
+redis>=5.0.0
+amqp==5.3.1
+billiard==4.2.1
+kombu==5.5.4
+vine==5.1.0
+
+# ---- API Schema / OpenAPI ----
 drf-spectacular==0.28.0
 inflection==0.5.1
 uritemplate==4.2.0
 
-# Environment Variables
-python-dotenv==1.1.1
+# ---- Utilities ----
+Pillow>=10.0.0                # Image handling
+python-dateutil>=2.9.0.post0  # Datetime utilities
+PyYAML==6.0.2                 # YAML support
+requests>=2.32.3
+requests-oauthlib>=1.3.1
+idna==3.10
+urllib3==2.5.0
+certifi==2025.8.3
+charset-normalizer==3.4.3
+six==1.17.0
+typing_extensions==4.14.1
+tzdata==2025.2
+colorama==0.4.6
 
-# JSON Schema & Validation
+# ---- Security / Cryptography ----
+cffi==1.17.1
+cryptography==45.0.6
+pycparser==2.22
+PyJWT==2.10.1
+
+# ---- Development & Packaging ----
+virtualenv==20.32.0
+nodeenv==1.9.1
+distlib==0.4.0
+platformdirs==4.3.8
+filelock==3.18.0
+
+# ---- Code Quality / Pre-commit ----
+pre_commit==4.2.0
+identify==2.6.12
+cfgv==3.4.0
+
+# ---- JSON Schema & Validation ----
 jsonschema==4.25.0
 jsonschema-specifications==2025.4.1
 referencing==0.36.2
 rpds-py==0.26.0
-typing_extensions==4.14.1
-PyYAML==6.0.2
-
-# Dev Tools
 attrs==25.3.0
-cfgv==3.4.0
-distlib==0.4.0
-filelock==3.18.0
-identify==2.6.12
-nodeenv==1.9.1
-platformdirs==4.3.8
-pre_commit==4.2.0
-virtualenv==20.32.0
+
+# ---- CLI / Interactive ----
+click==8.2.1
+click-didyoumean==0.3.1
+click-plugins==1.1.1.2
+click-repl==0.3.0
+prompt_toolkit==3.0.51
+wcwidth==0.2.13
